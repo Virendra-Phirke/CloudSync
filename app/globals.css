@@ -1,0 +1,79 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@theme {
+  --color-background: var(--theme-background, #0a0a0f);
+  --color-foreground: var(--theme-foreground, #e0f2fe);
+  
+  --color-card: var(--theme-card, #111118);
+  --color-card-foreground: var(--theme-card-foreground, #e0f2fe);
+  
+  --color-popover: var(--theme-popover, #111118);
+  --color-popover-foreground: var(--theme-popover-foreground, #e0f2fe);
+  
+  --color-primary: var(--theme-primary, #0ea5e9);
+  --color-primary-foreground: var(--theme-primary-foreground, #000000);
+  
+  --color-secondary: var(--theme-secondary, #1e293b);
+  --color-secondary-foreground: var(--theme-secondary-foreground, #f8fafc);
+  
+  --color-muted: var(--theme-muted, #1e293b);
+  --color-muted-foreground: var(--theme-muted-foreground, #94a3b8);
+  
+  --color-accent: var(--theme-accent, #1e293b);
+  --color-accent-foreground: var(--theme-accent-foreground, #f8fafc);
+  
+  --color-destructive: var(--theme-destructive, #ef4444);
+  --color-destructive-foreground: var(--theme-destructive-foreground, #f8fafc);
+  
+  --color-border: var(--theme-border, #1e293b);
+  --color-input: var(--theme-input, #1e293b);
+  --color-ring: var(--theme-ring, #0ea5e9);
+  
+  --color-sidebar: var(--theme-sidebar, #0f172a);
+  --color-sidebar-foreground: var(--theme-sidebar-foreground, #f8fafc);
+  --color-sidebar-border: var(--theme-sidebar-border, #1e293b);
+  --color-sidebar-accent: var(--theme-sidebar-accent, #1e293b);
+  
+  --color-theme-box: var(--theme-theme-box, #15171b);
+  --color-theme-box-foreground: var(--theme-theme-box-foreground, #e0f2fe);
+  --color-theme-box-border: var(--theme-theme-box-border, #1e293b);
+  
+  --color-chart-1: var(--theme-chart1, #0ea5e9);
+  --color-chart-2: var(--theme-chart2, #22c55e);
+  --color-chart-3: var(--theme-chart3, #eab308);
+  --color-chart-4: var(--theme-chart4, #f97316);
+  --color-chart-5: var(--theme-chart5, #ef4444);
+  
+  /* Retain these legacy vars in case old code relies on them directly */
+  --color-neutral-950: var(--theme-background, #0a0a0f);
+  --color-neutral-900: var(--theme-card, #171717);
+  --color-neutral-800: var(--theme-border, #262626);
+  --color-neutral-700: var(--theme-input, #404040);
+  --color-neutral-500: var(--theme-muted-foreground, #737373);
+  --color-neutral-400: var(--theme-muted-foreground, #a3a3a3);
+  --color-neutral-300: var(--theme-foreground, #d4d4d4);
+  --color-neutral-200: var(--theme-foreground, #e5e5e5);
+  --color-neutral-100: var(--theme-foreground, #f5f5f5);
+
+  --color-blue-600: var(--theme-primary, #2563eb);
+  --color-blue-700: var(--theme-primary, #1d4ed8);
+  --color-blue-500: var(--theme-primary, #3b82f6);
+  --color-blue-400: var(--theme-primary, #60a5fa);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+*::-webkit-scrollbar {
+  display: none !important;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+* {
+  -ms-overflow-style: none !important;  /* IE and Edge */
+  scrollbar-width: none !important;  /* Firefox */
+}
