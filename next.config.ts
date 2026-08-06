@@ -14,7 +14,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  output: 'standalone',
   transpilePackages: ['motion', 'framer-motion', 'lucide-react'],
   // Empty turbopack config silences the "webpack config but no turbopack config" warning.
   // Next.js 16 uses Turbopack by default; most apps work fine without custom webpack config.
