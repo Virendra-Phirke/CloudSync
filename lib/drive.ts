@@ -92,7 +92,7 @@ export async function fetchDriveQuota(): Promise<DriveQuota | null> {
   }
 }
 
-export async function findOrCreateDriveFolder(name: string, parentId?: string): Promise<string> {
+export async function findOrCreateDriveFolder(name: string, parentId?: string): Promise<{ id: string; isNew: boolean }> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
 
@@ -110,7 +110,7 @@ export async function findOrCreateDriveFolder(name: string, parentId?: string): 
   const data = await res.json();
   
   if (data.files && data.files.length > 0) {
-    return data.files[0].id;
+    return { id: data.files[0].id, isNew: false };
   }
 
   // 2. Create if not found
@@ -133,7 +133,7 @@ export async function findOrCreateDriveFolder(name: string, parentId?: string): 
 
   if (!createRes.ok) throw new Error('Failed to create folder');
   const createData = await createRes.json();
-  return createData.id;
+  return { id: createData.id, isNew: true };
 }
 
 export async function getDriveFileByName(name: string, parentId: string): Promise<(DriveFile & { md5Checksum?: string }) | null> {

@@ -14,13 +14,19 @@ export async function syncLocalFolderToDrive(
 
   onProgress?.(`Ensuring root folder "${localHandle.name}" exists in Drive...`);
   // Put the root folder in the user's Drive root
-  const rootDriveId = await findOrCreateDriveFolder(localHandle.name, 'root');
+  const rootResult = await findOrCreateDriveFolder(localHandle.name, 'root');
+  const rootDriveId = rootResult.id;
 
   // Map to keep track of created/found folder IDs
   // Key: relative path (e.g. "src" or "src/components")
   // Value: Google Drive Folder ID
   const folderIdMap = new Map<string, string>();
   folderIdMap.set('', rootDriveId);
+
+  const newFolders = new Set<string>();
+  if (rootResult.isNew) {
+    newFolders.add('');
+  }
 
   let processed = 0;
   const total = localFiles.length;
@@ -40,8 +46,11 @@ export async function syncLocalFolderToDrive(
     if (item.isDirectory) {
       onProgress?.(`[${processed}/${total}] Creating folder: ${item.path}...`);
       try {
-        const driveId = await findOrCreateDriveFolder(item.name, parentId);
-        folderIdMap.set(item.path, driveId);
+        const dirResult = await findOrCreateDriveFolder(item.name, parentId);
+        folderIdMap.set(item.path, dirResult.id);
+        if (dirResult.isNew) {
+          newFolders.add(item.path);
+        }
       } catch (err: any) {
         console.error(`Failed to create folder ${item.path}`, err);
         onProgress?.(`Error creating folder ${item.name}`);
@@ -55,7 +64,9 @@ export async function syncLocalFolderToDrive(
           let localHash = cachedState?.md5Hash;
           
           // Fast-path: Check if file is unmodified locally
-          const isUnmodifiedLocally = cachedState && 
+          const parentWasNewlyCreated = newFolders.has(parentPath);
+          const isUnmodifiedLocally = !parentWasNewlyCreated && 
+                                      cachedState && 
                                       cachedState.lastModified === file.lastModified && 
                                       cachedState.size === file.size;
 
