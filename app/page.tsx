@@ -54,10 +54,18 @@ export default function Page() {
       </button>
 
       <main className="flex-1 overflow-y-auto relative h-full">
-        {activeTab === 'dashboard' && <Dashboard />}
-        {activeTab === 'files' && <FilesView />}
-        {activeTab === 'accounts' && <AccountsView />}
-        {activeTab === 'settings' && <SettingsView />}
+        <div className={activeTab === 'dashboard' ? 'h-full' : 'hidden'}>
+          <Dashboard />
+        </div>
+        <div className={activeTab === 'files' ? 'h-full' : 'hidden'}>
+          <FilesView />
+        </div>
+        <div className={activeTab === 'accounts' ? 'h-full' : 'hidden'}>
+          <AccountsView />
+        </div>
+        <div className={activeTab === 'settings' ? 'h-full' : 'hidden'}>
+          <SettingsView />
+        </div>
       </main>
       <ThemeSidebar isOpen={isThemeOpen} onClose={() => setIsThemeOpen(false)} />
     </div>
