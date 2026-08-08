@@ -374,7 +374,7 @@ export const FilesView = React.memo(function FilesView() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="px-8 max-md:pl-20 py-5 border-b border-neutral-800 flex flex-col gap-4 sticky top-0 bg-neutral-950/95 z-10">
+      <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 flex flex-col gap-4 sticky top-0 bg-neutral-950/95 z-10">
         {/* Top row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -401,16 +401,16 @@ export const FilesView = React.memo(function FilesView() {
               </div>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
             {/* Search */}
-            <div className="relative">
+            <div className="relative flex-1 min-w-[200px] md:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={15} />
               <input
                 type="text"
                 placeholder="Search files..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm bg-neutral-900 border border-neutral-800 text-neutral-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all w-56 placeholder:text-neutral-500"
+                className="pl-9 pr-4 py-2 text-sm bg-neutral-900 border border-neutral-800 text-neutral-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all w-full md:w-56 placeholder:text-neutral-500"
               />
             </div>
             

@@ -47,10 +47,10 @@ export default function Page() {
       {/* Mobile Hamburger Menu Button */}
       <button
         onClick={() => setIsMobileOpen(true)}
-        className="md:hidden fixed top-5 left-4 z-20 p-2 bg-neutral-900 border border-neutral-800 rounded-lg text-neutral-300 hover:text-white shadow-lg"
+        className="md:hidden fixed top-5 left-4 z-20 p-2 text-neutral-400 hover:text-white rounded-lg transition-colors bg-neutral-950/50 backdrop-blur-sm"
         aria-label="Open menu"
       >
-        <Menu size={20} />
+        <Menu size={24} />
       </button>
 
       <main className="flex-1 overflow-y-auto relative h-full">

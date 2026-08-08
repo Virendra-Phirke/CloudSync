@@ -58,14 +58,14 @@ export function Sidebar({
           isCollapsed ? "md:w-[88px]" : "md:w-64"
         )}
       >
-        <div className={clsx("flex items-center mb-10 text-sidebar-foreground", isCollapsed ? "justify-center px-0" : "gap-3 px-2 justify-between")}>
+        <div className={clsx("flex items-center mb-10 text-sidebar-foreground", isCollapsed ? "max-md:justify-between max-md:px-2 max-md:gap-3 md:justify-center md:px-0" : "gap-3 px-2 justify-between")}>
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
               <img src="/Icon/cloudSynce-logo.svg" alt="CloudSync Logo" className="w-full h-full object-contain" />
             </div>
-            {!isCollapsed && (
-              <h1 className="text-xl font-semibold tracking-tight text-sidebar-foreground whitespace-nowrap">CloudSync</h1>
-            )}
+            <h1 className={clsx("text-xl font-semibold tracking-tight text-sidebar-foreground whitespace-nowrap", isCollapsed ? "md:hidden" : "")}>
+              CloudSync
+            </h1>
           </div>
           
           {/* Mobile close button */}
@@ -93,12 +93,12 @@ export function Sidebar({
               aria-current={isActive ? 'page' : undefined}
               className={clsx(
                 "w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
-                isCollapsed ? "justify-center px-0" : "px-3",
+                isCollapsed ? "max-md:px-3 md:justify-center md:px-0" : "px-3",
                 isActive ? "text-primary bg-primary/10" : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground hover:scale-[1.02] active:scale-[0.98]"
               )}
             >
               <Icon size={18} className={clsx("shrink-0", isActive ? "text-primary" : "text-sidebar-foreground/50")} aria-hidden="true" />
-              {!isCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+              <span className={clsx("whitespace-nowrap transition-all", isCollapsed ? "md:hidden" : "")}>{item.label}</span>
               {isActive && (
                 <motion.div 
                   layoutId="activeTabIndicator" 
@@ -122,14 +122,14 @@ export function Sidebar({
           title={isCollapsed ? "Theme settings" : undefined}
           className={clsx(
             "w-full flex items-center gap-3 py-2 rounded-xl text-sm font-medium text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
-            isCollapsed ? "justify-center px-0" : "px-3"
+            isCollapsed ? "max-md:px-3 md:justify-center md:px-0" : "px-3"
           )}
         >
           <Palette size={18} className="text-sidebar-foreground/50 shrink-0" aria-hidden="true" />
-          {!isCollapsed && <span className="whitespace-nowrap">Theme</span>}
+          <span className={clsx("whitespace-nowrap", isCollapsed ? "md:hidden" : "")}>Theme</span>
         </button>
         
-        <div className={clsx("flex items-center", isCollapsed ? "justify-center px-0" : "gap-3 px-2")}>
+        <div className={clsx("flex items-center", isCollapsed ? "max-md:px-2 max-md:gap-3 md:justify-center md:px-0" : "gap-3 px-2")}>
           <div className="relative shrink-0" title={syncStatus}>
             <div className={clsx(
               "w-2.5 h-2.5 rounded-full",
@@ -137,15 +137,13 @@ export function Sidebar({
               syncStatus === 'error' ? "bg-red-400" : "bg-emerald-400"
             )} />
           </div>
-          {!isCollapsed && (
-            <div className="flex flex-col whitespace-nowrap overflow-hidden">
-              <span className="text-xs font-semibold text-sidebar-foreground">
-                {syncStatus === 'syncing' ? 'Syncing...' :
-                  syncStatus === 'error' ? 'Sync Error' : 'Ready'}
-              </span>
-              <span className="text-[10px] text-sidebar-foreground/50">Waiting for files</span>
-            </div>
-          )}
+          <div className={clsx("flex flex-col whitespace-nowrap overflow-hidden", isCollapsed ? "md:hidden" : "")}>
+            <span className="text-xs font-semibold text-sidebar-foreground">
+              {syncStatus === 'syncing' ? 'Syncing...' :
+                syncStatus === 'error' ? 'Sync Error' : 'Ready'}
+            </span>
+            <span className="text-[10px] text-sidebar-foreground/50">Waiting for files</span>
+          </div>
         </div>
 
         {/* Desktop Collapse Toggle */}
