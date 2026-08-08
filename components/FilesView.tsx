@@ -228,6 +228,74 @@ export const FilesView = React.memo(function FilesView() {
     }
   }, [activeFolderId, loadFiles, showToast]);
 
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!activeFolderId) return;
+    e.preventDefault();
+    setIsDragging(true);
+  }, [activeFolderId]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    if (!activeFolderId) return;
+    
+    const items = Array.from(e.dataTransfer.items);
+    if (items.length === 0) return;
+
+    try {
+      const entry = await getLocalFolderById(activeFolderId);
+      if (!entry) return;
+
+      let targetHandle = entry.handle;
+      if (currentPath !== '') {
+        const parts = currentPath.split('/');
+        for (const p of parts) {
+          targetHandle = await targetHandle.getDirectoryHandle(p);
+        }
+      }
+
+      let hasNewFiles = false;
+
+      for (const item of items) {
+        if (item.kind === 'file') {
+          let file: File | null = null;
+          
+          if ('getAsFileSystemHandle' in item) {
+            const handle = await (item as any).getAsFileSystemHandle();
+            if (handle && handle.kind === 'file') {
+              file = await handle.getFile();
+            }
+          } else {
+            file = item.getAsFile();
+          }
+
+          if (file) {
+            const newFileHandle = await targetHandle.getFileHandle(file.name, { create: true });
+            const writable = await (newFileHandle as any).createWritable();
+            await writable.write(file);
+            await writable.close();
+            hasNewFiles = true;
+          }
+        }
+      }
+
+      if (hasNewFiles) {
+        showToast("Files saved successfully!", "success");
+        loadFiles();
+        handleForceSync();
+      }
+    } catch (err: any) {
+      console.error('Drop error:', err);
+      showToast(err.message || 'Failed to save dropped files', 'error');
+    }
+  }, [activeFolderId, currentPath, loadFiles, handleForceSync, showToast]);
+
   const filteredFiles = useMemo(() => {
     const q = searchQuery.toLowerCase();
     if (q) {
@@ -507,7 +575,30 @@ export const FilesView = React.memo(function FilesView() {
         )}
       </AnimatePresence>
 
-      <div className="flex-1 overflow-auto p-6 relative">
+      <div 
+        className="flex-1 overflow-auto p-6 relative"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        
+        {/* Drag Overlay */}
+        <AnimatePresence>
+          {isDragging && (
+            <motion.div 
+              className="absolute inset-4 z-50 bg-blue-500/10 border-2 border-dashed border-blue-500/50 rounded-2xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+            >
+              <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
+                <UploadCloud size={40} className="text-blue-400" />
+              </div>
+              <h3 className="text-xl font-bold text-blue-400">Drop files here</h3>
+              <p className="text-blue-400/80 mt-2">Files will be saved locally and synced to Drive</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Selection toolbar */}
         <AnimatePresence>
