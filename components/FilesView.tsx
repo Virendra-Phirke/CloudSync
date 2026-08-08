@@ -938,7 +938,7 @@ export const FilesView = React.memo(function FilesView() {
         onClick={handleAddFolder}
         disabled={addingFolder}
         title="Add New Folder"
-        className="fixed bottom-6 right-6 md:bottom-8 md:right-8 z-40 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-40 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {addingFolder ? <Loader2 size={24} className="animate-spin" /> : <Plus size={24} />}
       </button>
