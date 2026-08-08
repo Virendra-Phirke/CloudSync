@@ -1,5 +1,6 @@
 'use client';
 import { get, set, del } from 'idb-keyval';
+import ignore, { Ignore } from 'ignore';
 
 // Legacy keys (for migration)
 const LEGACY_HANDLE_KEY = 'local_sync_folder_handle';
@@ -250,16 +251,36 @@ const MAX_DEPTH = 5;
  * Reads children of a directory handle recursively up to MAX_DEPTH.
  * Returns both files and sub-directories as LocalFile entries.
  */
+
 export async function readFolderFiles(
   handle: FileSystemDirectoryHandle,
   prefix = '',
-  depth = 0
+  depth = 0,
+  ig?: Ignore
 ): Promise<LocalFile[]> {
   const results: LocalFile[] = [];
   if (depth > MAX_DEPTH) return results;
 
+  // At root, check for .syncignore
+  let currentIg = ig;
+  if (depth === 0) {
+    currentIg = ignore().add(['.syncignore', '.git', 'node_modules', '.DS_Store']); // default ignores
+    try {
+      const ignoreHandle = await handle.getFileHandle('.syncignore');
+      const ignoreFile = await ignoreHandle.getFile();
+      const text = await ignoreFile.text();
+      currentIg.add(text);
+    } catch {
+      // no .syncignore file, that's fine
+    }
+  }
+
   for await (const [name, entry] of (handle as any).entries()) {
     const path = prefix ? `${prefix}/${name}` : name;
+    
+    if (currentIg && currentIg.ignores(path)) {
+      continue; // Skip ignored files/folders
+    }
 
     if (entry.kind === 'file') {
       try {
@@ -290,7 +311,7 @@ export async function readFolderFiles(
       });
       // Recursively read subdirectories
       try {
-        const subFiles = await readFolderFiles(entry as FileSystemDirectoryHandle, path, depth + 1);
+        const subFiles = await readFolderFiles(entry as FileSystemDirectoryHandle, path, depth + 1, currentIg);
         results.push(...subFiles);
       } catch {
         // Skip unreadable directories
@@ -314,7 +335,9 @@ export async function readFolderFiles(
  */
 export async function getFolderStats(
   handle: FileSystemDirectoryHandle,
-  depth = 0
+  depth = 0,
+  prefix = '',
+  ig?: Ignore
 ): Promise<FolderStats> {
   let fileCount = 0;
   let dirCount = 0;
@@ -322,7 +345,24 @@ export async function getFolderStats(
 
   if (depth > MAX_DEPTH) return { fileCount, dirCount, totalSize };
 
-  for await (const [, entry] of (handle as any).entries()) {
+  let currentIg = ig;
+  if (depth === 0) {
+    currentIg = ignore().add(['.syncignore', '.git', 'node_modules', '.DS_Store']);
+    try {
+      const ignoreHandle = await handle.getFileHandle('.syncignore');
+      const ignoreFile = await ignoreHandle.getFile();
+      const text = await ignoreFile.text();
+      currentIg.add(text);
+    } catch {}
+  }
+
+  for await (const [name, entry] of (handle as any).entries()) {
+    const path = prefix ? `${prefix}/${name}` : name;
+    
+    if (currentIg && currentIg.ignores(path)) {
+      continue;
+    }
+
     if (entry.kind === 'file') {
       try {
         const file: File = await entry.getFile();
@@ -332,7 +372,7 @@ export async function getFolderStats(
     } else if (entry.kind === 'directory') {
       dirCount++;
       try {
-        const subStats = await getFolderStats(entry as FileSystemDirectoryHandle, depth + 1);
+        const subStats = await getFolderStats(entry as FileSystemDirectoryHandle, depth + 1, path, currentIg);
         fileCount += subStats.fileCount;
         dirCount += subStats.dirCount;
         totalSize += subStats.totalSize;
