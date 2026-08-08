@@ -2,11 +2,20 @@
 import React, { useState, useEffect } from 'react';
 import { Menu } from 'lucide-react';
 import { Sidebar } from '../components/Sidebar';
-import { Dashboard } from '../components/Dashboard';
-import { FilesView } from '../components/FilesView';
-import { AccountsView } from '../components/AccountsView';
-import { SettingsView } from '../components/SettingsView';
-import { ThemeSidebar } from '../components/ThemeSidebar';
+import dynamic from 'next/dynamic';
+import { Loader2 } from 'lucide-react';
+
+const LoadingFallback = () => (
+  <div className="flex h-full items-center justify-center text-neutral-500">
+    <Loader2 size={32} className="animate-spin text-neutral-700" />
+  </div>
+);
+
+const Dashboard = dynamic(() => import('../components/Dashboard').then(mod => mod.Dashboard), { loading: () => <LoadingFallback /> });
+const FilesView = dynamic(() => import('../components/FilesView').then(mod => mod.FilesView), { loading: () => <LoadingFallback /> });
+const AccountsView = dynamic(() => import('../components/AccountsView').then(mod => mod.AccountsView), { loading: () => <LoadingFallback /> });
+const SettingsView = dynamic(() => import('../components/SettingsView').then(mod => mod.SettingsView), { loading: () => <LoadingFallback /> });
+const ThemeSidebar = dynamic(() => import('../components/ThemeSidebar').then(mod => mod.ThemeSidebar), { ssr: false });
 import { handleRedirectCallback } from '../lib/oauth';
 import { useToast } from '../components/ToastContext';
 import { AnimatePresence, motion } from 'motion/react';

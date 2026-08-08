@@ -1,8 +1,10 @@
 'use client';
 import { Folder, HardDrive, Cloud, FileText, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
+
+const StorageChart = dynamic(() => import('./StorageChart').then(mod => mod.StorageChart), { ssr: false });
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, FolderStats, SyncFolder } from '../lib/localFolder';
@@ -21,19 +23,6 @@ function formatBytes(bytes: number, decimals = 2) {
   return `${truncated} ${sizes[i]}`;
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const val = typeof payload[0].value === 'number' && payload[0].value > 1000 
-      ? formatBytes(payload[0].value) 
-      : `${payload[0].value} GB`;
-    return (
-      <div className="bg-neutral-800 border border-neutral-700 p-2 rounded-lg shadow-lg">
-        <p className="text-sm font-medium text-neutral-200">{`${payload[0].name}: ${val}`}</p>
-      </div>
-    );
-  }
-  return null;
-}
 
 interface FolderWithStats {
   folder: SyncFolder;
@@ -350,25 +339,7 @@ export const Dashboard = React.memo(function Dashboard() {
             
             {user && !loading && (
               <div className="h-36 w-36 shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={driveBreakdownData}
-                      innerRadius={38}
-                      outerRadius={55}
-                      paddingAngle={2}
-                      dataKey="value"
-                      stroke="none"
-                      startAngle={90}
-                      endAngle={-270}
-                    >
-                      {driveBreakdownData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<CustomTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <StorageChart data={driveBreakdownData} />
               </div>
             )}
           </motion.div>

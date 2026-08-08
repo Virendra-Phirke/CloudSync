@@ -15,10 +15,14 @@ import {
 } from '../lib/localFolder';
 import { syncBiDirectional, ConflictItem } from '../lib/syncBiDirectional';
 import { useToast } from './ToastContext';
-import { FilePreviewModal, getFileTypeInfo } from './FilePreviewModal';
-import { ConfirmDialog } from './ConfirmDialog';
-import { ShareModal } from './ShareModal';
-import { ConflictResolverModal } from './ConflictResolverModal';
+import { getFileTypeInfo } from '../lib/fileUtils';
+import dynamic from 'next/dynamic';
+
+const FilePreviewModal = dynamic(() => import('./FilePreviewModal').then(mod => mod.FilePreviewModal), { ssr: false });
+const ConfirmDialog = dynamic(() => import('./ConfirmDialog').then(mod => mod.ConfirmDialog), { ssr: false });
+const ShareModal = dynamic(() => import('./ShareModal').then(mod => mod.ShareModal), { ssr: false });
+const ConflictResolverModal = dynamic(() => import('./ConflictResolverModal').then(mod => mod.ConflictResolverModal), { ssr: false });
+
 import { removeSyncState } from '../lib/syncState';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
