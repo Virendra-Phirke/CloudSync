@@ -21,8 +21,8 @@ export function Sidebar({ activeTab, setActiveTab, syncStatus, onOpenTheme }: Si
   return (
     <div className="w-64 bg-sidebar h-full flex flex-col pt-8 pb-4 px-4 z-10 border-r border-sidebar-border shrink-0">
       <div className="flex items-center gap-3 px-2 mb-10 text-sidebar-foreground">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white shadow-md shadow-primary/20">
-          <Cloud size={20} />
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center">
+          <img src="/Icon/cloudSynce-logo.svg" alt="CloudSync Logo" className="w-full h-full object-contain" />
         </div>
         <h1 className="text-xl font-semibold tracking-tight text-sidebar-foreground">CloudSync</h1>
       </div>

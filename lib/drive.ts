@@ -235,3 +235,26 @@ export async function processOfflineUploads(onSuccess: (file: DriveFile) => void
   
   await set('offline_upload_queue', newQueue);
 }
+
+export async function deleteDriveFile(fileId: string): Promise<void> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Not authenticated to delete');
+
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errMsg = 'Failed to delete file';
+    try {
+      const err = await response.json();
+      if (err.error?.message) errMsg = err.error.message;
+    } catch {
+      // Ignored
+    }
+    throw new Error(errMsg);
+  }
+}

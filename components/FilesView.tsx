@@ -3,11 +3,11 @@ import {
   Search, Folder, MoreVertical, UploadCloud, 
   X, Download, CheckCircle, HardDrive,
   RefreshCw, FolderOpen, CloudOff, Loader2,
-  LayoutGrid, List, Plus, FolderPlus, ChevronRight,
+  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2,
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { fetchDriveFiles, DriveFile, uploadFileToDrive } from '../lib/drive';
+import { fetchDriveFiles, DriveFile, uploadFileToDrive, deleteDriveFile } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import {
   getLocalFolders, getLocalFolderById, addLocalFolder, readFolderFiles,
@@ -16,6 +16,7 @@ import {
 import { syncLocalFolderToDrive } from '../lib/syncEngine';
 import { useToast } from './ToastContext';
 import { FilePreviewModal, getFileTypeInfo } from './FilePreviewModal';
+import { ConfirmDialog } from './ConfirmDialog';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,10 @@ export const FilesView = React.memo(function FilesView() {
   const [folders, setFolders] = useState<SyncFolder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [addingFolder, setAddingFolder] = useState(false);
+
+  // File Deletion State
+  const [filesToDelete, setFilesToDelete] = useState<FileItem[] | null>(null);
+  const [deletingFiles, setDeletingFiles] = useState(false);
 
   const { showToast } = useToast();
 
@@ -287,6 +292,33 @@ export const FilesView = React.memo(function FilesView() {
     }
   }, [showToast, currentPath]);
 
+  const handleDeleteFile = useCallback(async () => {
+    if (!filesToDelete || filesToDelete.length === 0) return;
+    setDeletingFiles(true);
+    let successCount = 0;
+    
+    try {
+      for (const file of filesToDelete) {
+        if (file.driveId) {
+          await deleteDriveFile(file.driveId);
+        }
+        successCount++;
+        setFiles(prev => prev.filter(f => f.id !== file.id));
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          next.delete(file.id);
+          return next;
+        });
+      }
+      showToast(`Deleted ${successCount} file(s) successfully`, 'success');
+    } catch (err: any) {
+      showToast(`Failed to delete some files: ${err.message}`, 'error');
+    } finally {
+      setDeletingFiles(false);
+      setFilesToDelete(null);
+    }
+  }, [filesToDelete, showToast]);
+
   // ── Status badge config ─────────────────────────────────────────────────────
   const statusBadge: Record<SyncStatus, { cls: string; icon: React.ReactNode; label: string }> = {
     Synced:      { cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: <CheckCircle size={12} />, label: 'Synced' },
@@ -476,9 +508,20 @@ export const FilesView = React.memo(function FilesView() {
               exit={{ opacity: 0, y: -8 }}
             >
               <span className="text-sm font-medium text-blue-400">{selectedIds.size} item(s) selected</span>
-              <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors">
-                Clear
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setFilesToDelete(filteredFiles.filter(f => selectedIds.has(f.id)))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-red-400/10 hover:bg-red-400/20 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                >
+                  <Trash2 size={14} /> Delete Selected
+                </button>
+                <button 
+                  onClick={() => setSelectedIds(new Set())} 
+                  className="px-3 py-1.5 text-xs font-medium text-blue-400 hover:bg-blue-400/10 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
+                  Clear
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -564,17 +607,19 @@ export const FilesView = React.memo(function FilesView() {
                       >
                         {/* Selection checkbox */}
                         <div
-                          className={`absolute top-2.5 right-2.5 transition-opacity duration-150 ${
+                          className={`absolute top-2.5 right-2.5 transition-opacity duration-150 flex items-center gap-1 ${
                             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                           }`}
-                          onClick={(e) => handleSelectFile(e, file.id)}
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}}
-                            className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
+                          <div onClick={(e) => handleSelectFile(e, file.id)} className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}}
+                              className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </div>
                         </div>
                         
                         {/* File icon */}
@@ -717,6 +762,26 @@ export const FilesView = React.memo(function FilesView() {
           />
         )}
       </AnimatePresence>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!filesToDelete && filesToDelete.length > 0}
+        title={filesToDelete?.length === 1 ? 'Delete File' : `Delete ${filesToDelete?.length} Files`}
+        message={
+          filesToDelete?.length === 1 ? (
+            <>
+              Are you sure you want to delete <strong>{filesToDelete[0].name}</strong>?
+              {filesToDelete[0].driveId ? ' This will delete the file from Google Drive.' : ' This file is only stored locally.'}
+            </>
+          ) : (
+            `Are you sure you want to delete ${filesToDelete?.length} selected files? Files synced to Google Drive will be removed from the cloud.`
+          )
+        }
+        confirmText={deletingFiles ? 'Deleting...' : 'Delete'}
+        isDestructive
+        onConfirm={handleDeleteFile}
+        onCancel={() => !deletingFiles && setFilesToDelete(null)}
+      />
     </div>
   );
 });

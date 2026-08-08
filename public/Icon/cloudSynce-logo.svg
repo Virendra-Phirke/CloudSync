@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">cloudSynce logo</title>
+  <desc id="desc">Blue gradient cloud with synchronization arrows and cloudSynce wordmark.</desc>
+
+  <defs>
+    <linearGradient id="cloudGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#25D5E8"/>
+      <stop offset="52%" stop-color="#168BFA"/>
+      <stop offset="100%" stop-color="#173ED8"/>
+    </linearGradient>
+    <linearGradient id="syncGradient" x1="15%" y1="10%" x2="90%" y2="90%">
+      <stop offset="0%" stop-color="#16CBEA"/>
+      <stop offset="100%" stop-color="#2144E8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Cloud outline -->
+  <path
+    d="M120 288
+       C88 282 66 257 66 226
+       C66 189 96 160 133 160
+       C141 160 149 161 157 164
+       C169 121 208 91 254 91
+       C302 91 343 121 355 165
+       C363 162 372 160 381 160
+       C418 160 448 189 448 226
+       C448 260 423 287 390 291
+       L318 291
+       L301 274
+       L211 274
+       L194 291
+       Z"
+    fill="none"
+    stroke="url(#cloudGradient)"
+    stroke-width="30"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Upper sync arrow -->
+  <path
+    d="M205 235
+       A54 54 0 0 1 306 210
+       L321 192
+       L330 231
+       L290 231
+       L304 214"
+    fill="none"
+    stroke="url(#syncGradient)"
+    stroke-width="19"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Lower sync arrow -->
+  <path
+    d="M306 252
+       A54 54 0 0 1 205 277
+       L190 295
+       L181 256
+       L221 256
+       L207 273"
+    fill="none"
+    stroke="#284BE5"
+    stroke-width="19"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+
+  <!-- Wordmark -->
+  <text x="256" y="382"
+        text-anchor="middle"
+        font-family="Inter, Segoe UI, Arial, sans-serif"
+        font-size="58"
+        font-weight="700"
+        letter-spacing="-2.5">
+    <tspan fill="#14264F">cloud</tspan><tspan fill="#1767E8">Synce</tspan>
+  </text>
+</svg>

@@ -8,6 +8,8 @@ import {
 } from '../lib/localFolder';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { useToast } from './ToastContext';
+import { getAppSettings, saveAppSettings, AppSettings } from '../lib/settings';
+import { ConfirmDialog } from './ConfirmDialog';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -20,9 +22,6 @@ function formatBytes(bytes: number, decimals = 2) {
   const truncated = Math.floor(val * factor) / factor;
   return `${truncated} ${sizes[i]}`;
 }
-
-// ... existing imports ...
-import { getAppSettings, saveAppSettings, AppSettings } from '../lib/settings';
 
 interface FolderWithStats {
   folder: SyncFolder;
@@ -41,6 +40,10 @@ export function SettingsView() {
   const [folderEntries, setFolderEntries] = useState<FolderWithStats[]>([]);
   const [loadingPick, setLoadingPick] = useState(false);
   const [fsApiSupported, setFsApiSupported] = useState(true);
+
+  // Confirmation dialog state
+  const [folderToRemove, setFolderToRemove] = useState<{ id: string; name: string } | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const { showToast } = useToast();
 
@@ -106,16 +109,19 @@ export function SettingsView() {
     }
   }, [showToast, loadFolders]);
 
-  const handleRemoveFolder = useCallback(async (id: string, name: string) => {
-    await removeLocalFolder(id);
-    showToast(`Removed folder "${name}"`, 'info');
+  const confirmRemoveFolder = useCallback(async () => {
+    if (!folderToRemove) return;
+    await removeLocalFolder(folderToRemove.id);
+    showToast(`Removed folder "${folderToRemove.name}"`, 'info');
+    setFolderToRemove(null);
     await loadFolders();
-  }, [showToast, loadFolders]);
+  }, [folderToRemove, showToast, loadFolders]);
 
-  const handleClearAll = useCallback(async () => {
+  const confirmClearAll = useCallback(async () => {
     await clearAllLocalFolders();
     setFolderEntries([]);
-    showToast('All folders cleared.', 'info');
+    showToast('Application data reset.', 'info');
+    setShowResetConfirm(false);
   }, [showToast]);
 
   const updateSetting = useCallback(async (updates: Partial<AppSettings>) => {
@@ -217,7 +223,7 @@ export function SettingsView() {
                       </div>
                     </div>
                     <button
-                      onClick={() => handleRemoveFolder(entry.folder.id, entry.folder.name)}
+                      onClick={() => setFolderToRemove({ id: entry.folder.id, name: entry.folder.name })}
                       className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
                       title="Remove folder"
                     >
@@ -308,7 +314,7 @@ export function SettingsView() {
                 <p className="text-sm text-neutral-400">Clears all local metadata and disconnects accounts</p>
               </div>
               <button
-                onClick={async () => { await handleClearAll(); showToast('Application data reset.', 'info'); }}
+                onClick={() => setShowResetConfirm(true)}
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm shadow-red-500/20"
               >
                 Factory Reset
@@ -317,6 +323,27 @@ export function SettingsView() {
           </div>
         </section>
       </div>
+
+      {/* Confirmation Dialogs */}
+      <ConfirmDialog
+        isOpen={!!folderToRemove}
+        title="Remove Folder"
+        message={<>Are you sure you want to stop syncing <strong>{folderToRemove?.name}</strong>? Local files will not be deleted, but they will no longer sync to Google Drive.</>}
+        confirmText="Remove"
+        isDestructive
+        onConfirm={confirmRemoveFolder}
+        onCancel={() => setFolderToRemove(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={showResetConfirm}
+        title="Factory Reset"
+        message="Are you sure you want to reset all application data? This will clear all synced folders, reset settings, and disconnect your Google account. Your files will not be deleted."
+        confirmText="Reset App Data"
+        isDestructive
+        onConfirm={confirmClearAll}
+        onCancel={() => setShowResetConfirm(false)}
+      />
     </div>
   );
 }

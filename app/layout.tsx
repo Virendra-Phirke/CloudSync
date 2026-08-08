@@ -7,6 +7,9 @@ import { AutoSyncManager } from '../components/AutoSyncManager';
 export const metadata: Metadata = {
   title: 'CloudSync',
   description: 'A beautiful local-to-cloud synchronization tool.',
+  icons: {
+    icon: '/Icon/cloudSynce-logo.svg',
+  },
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {
