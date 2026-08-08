@@ -13,11 +13,12 @@ import {
   getLocalFolders, getLocalFolderById, addLocalFolder, readFolderFiles,
   LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder,
 } from '../lib/localFolder';
-import { syncLocalFolderToDrive } from '../lib/syncEngine';
+import { syncBiDirectional, ConflictItem } from '../lib/syncBiDirectional';
 import { useToast } from './ToastContext';
 import { FilePreviewModal, getFileTypeInfo } from './FilePreviewModal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ShareModal } from './ShareModal';
+import { ConflictResolverModal } from './ConflictResolverModal';
 import { removeSyncState } from '../lib/syncState';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -74,6 +75,8 @@ export const FilesView = React.memo(function FilesView() {
   const [syncProgressMsg, setSyncProgressMsg] = useState('');
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [shareFile, setShareFile] = useState<{ id: string; name: string; driveId?: string } | null>(null);
+  const [currentConflicts, setCurrentConflicts] = useState<ConflictItem[]>([]);
+  const [resolveConflictFn, setResolveConflictFn] = useState<((res: 'local' | 'drive' | 'skip') => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const userRef = useRef<OAuthUser | null>(null);
   userRef.current = user;
@@ -213,8 +216,17 @@ export const FilesView = React.memo(function FilesView() {
       const entry = await getLocalFolderById(activeFolderId);
       if (!entry) throw new Error('Folder not found or permission denied');
       
-      await syncLocalFolderToDrive(entry.handle, (msg) => {
+      await syncBiDirectional(entry.handle, (msg) => {
         setSyncProgressMsg(msg);
+      }, (conflicts) => {
+        return new Promise<'local' | 'drive' | 'skip'>((resolve) => {
+          setCurrentConflicts(conflicts);
+          setResolveConflictFn(() => (res: 'local' | 'drive' | 'skip') => {
+            setCurrentConflicts([]);
+            setResolveConflictFn(null);
+            resolve(res);
+          });
+        });
       });
       
       showToast('Sync completed successfully!', 'success');
@@ -922,6 +934,17 @@ export const FilesView = React.memo(function FilesView() {
             isOpen={!!shareFile}
             onClose={() => setShareFile(null)}
             file={shareFile}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Conflict Modal */}
+      <AnimatePresence>
+        {currentConflicts.length > 0 && resolveConflictFn && (
+          <ConflictResolverModal
+            isOpen={currentConflicts.length > 0}
+            conflicts={currentConflicts}
+            onResolve={resolveConflictFn}
           />
         )}
       </AnimatePresence>

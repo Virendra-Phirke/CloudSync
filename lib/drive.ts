@@ -185,6 +185,28 @@ export async function getDriveFileByName(name: string, parentId: string): Promis
   return null;
 }
 
+export async function fetchDriveFilesByParent(parentId: string): Promise<(DriveFile & { md5Checksum?: string })[]> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+
+  const q = `'${parentId}' in parents and trashed=false`;
+  
+  let allFiles: any[] = [];
+  let pageToken = '';
+  
+  do {
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,thumbnailLink,iconLink)&pageToken=${pageToken}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error('Failed to query files in folder');
+    const data = await res.json();
+    if (data.files) allFiles = allFiles.concat(data.files);
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  
+  return allFiles;
+}
+
 export async function updateDriveFile(fileId: string, file: File): Promise<DriveFile> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated to upload');
