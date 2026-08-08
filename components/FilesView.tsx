@@ -373,10 +373,10 @@ export const FilesView = React.memo(function FilesView() {
         )}
       </AnimatePresence>
 
-      {/* Header - NO backdrop-filter */}
-      <header className="px-8 py-5 border-b border-neutral-800 flex flex-col gap-4 sticky top-0 bg-neutral-950/95 z-10">
+      {/* Header */}
+      <header className="px-8 max-md:pl-20 py-5 border-b border-neutral-800 flex flex-col gap-4 sticky top-0 bg-neutral-950/95 z-10">
         {/* Top row */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Files</h2>
             {activeFolder && (
@@ -401,7 +401,7 @@ export const FilesView = React.memo(function FilesView() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={15} />
@@ -656,8 +656,8 @@ export const FilesView = React.memo(function FilesView() {
                 </div>
               ) : (
                 /* ── List View ── */
-                <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-sm overflow-hidden">
-                  <table className="w-full text-left border-collapse">
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
                     <thead>
                       <tr className="border-b border-neutral-800 bg-neutral-900/50">
                         <th className="px-5 py-3.5 w-10">

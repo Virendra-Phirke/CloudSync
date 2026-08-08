@@ -34,12 +34,12 @@ export const AccountsView = React.memo(function AccountsView() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="px-8 py-6 border-b border-neutral-800 sticky top-0 bg-neutral-950/95 z-10">
+      <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 sticky top-0 bg-neutral-950/95 z-10">
         <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Cloud Accounts</h2>
         <p className="text-sm text-neutral-400 mt-1">Manage your connected cloud storage providers.</p>
       </header>
       
-      <div className="p-8 max-w-4xl">
+      <div className="p-4 md:p-8 max-w-4xl">
         <div className="grid gap-6">
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-sm">
             <div className="flex items-center gap-5">

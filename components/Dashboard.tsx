@@ -168,12 +168,12 @@ export const Dashboard = React.memo(function Dashboard() {
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
-      {/* Header - NO backdrop-filter */}
-      <header className="px-8 py-6 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-950/95 z-10">
+      {/* Header */}
+      <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-950/95 z-10">
         <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Dashboard</h2>
       </header>
       
-      <div className="p-8 space-y-8 flex-1">
+      <div className="p-4 md:p-8 space-y-8 flex-1">
         
         {/* ── Storage Stats ── */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeInUp">
