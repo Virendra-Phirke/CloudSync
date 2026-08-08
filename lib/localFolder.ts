@@ -1,12 +1,28 @@
 'use client';
 import { get, set, del } from 'idb-keyval';
 
-const HANDLE_KEY = 'local_sync_folder_handle';
-const INFO_KEY   = 'local_sync_folder_info';
+// Legacy keys (for migration)
+const LEGACY_HANDLE_KEY = 'local_sync_folder_handle';
+const LEGACY_INFO_KEY   = 'local_sync_folder_info';
+
+// New multi-folder key
+const FOLDERS_KEY = 'local_sync_folders';
 
 export interface FolderInfo {
   name: string;
   savedAt: number;
+}
+
+export interface SyncFolder {
+  id: string;
+  name: string;
+  savedAt: number;
+}
+
+export interface SyncFolderEntry {
+  id: string;
+  handle: FileSystemDirectoryHandle;
+  info: SyncFolder;
 }
 
 export interface LocalFile {
@@ -71,8 +87,79 @@ export async function calculateFileHash(file: File): Promise<string> {
   });
 }
 
-/** Prompts the user to pick a local directory; persists the handle to idb-keyval. */
-export async function pickLocalFolder(): Promise<FileSystemDirectoryHandle | null> {
+// ─── Migration ────────────────────────────────────────────────────────────────
+
+/** Migrate legacy single-folder data to new multi-folder format */
+async function migrateLegacyFolder(): Promise<void> {
+  try {
+    const legacyHandle: FileSystemDirectoryHandle | undefined = await get(LEGACY_HANDLE_KEY);
+    const legacyInfo: FolderInfo | undefined = await get(LEGACY_INFO_KEY);
+    
+    if (legacyHandle && legacyInfo) {
+      const entry: SyncFolderEntry = {
+        id: `folder-${Date.now()}`,
+        handle: legacyHandle,
+        info: {
+          id: `folder-${Date.now()}`,
+          name: legacyInfo.name,
+          savedAt: legacyInfo.savedAt,
+        },
+      };
+      entry.info.id = entry.id;
+      await set(FOLDERS_KEY, [entry]);
+      // Clean up legacy keys
+      await del(LEGACY_HANDLE_KEY);
+      await del(LEGACY_INFO_KEY);
+    }
+  } catch {
+    // Migration failed silently — no legacy data or corrupted
+  }
+}
+
+// ─── Multi-Folder CRUD ───────────────────────────────────────────────────────
+
+/** Get all stored folder entries. Auto-migrates legacy data on first call. */
+export async function getLocalFolders(): Promise<SyncFolderEntry[]> {
+  try {
+    let folders: SyncFolderEntry[] | undefined = await get(FOLDERS_KEY);
+    
+    // Try migration if no folders found
+    if (!folders || folders.length === 0) {
+      await migrateLegacyFolder();
+      folders = await get(FOLDERS_KEY);
+    }
+    
+    return folders || [];
+  } catch {
+    return [];
+  }
+}
+
+/** Get folder infos without requiring permission (lightweight, for UI). */
+export async function getLocalFolderInfos(): Promise<SyncFolder[]> {
+  const folders = await getLocalFolders();
+  return folders.map(f => f.info);
+}
+
+/** Get a specific folder entry by ID, re-requesting permission if needed. */
+export async function getLocalFolderById(id: string): Promise<SyncFolderEntry | null> {
+  const folders = await getLocalFolders();
+  const entry = folders.find(f => f.id === id);
+  if (!entry) return null;
+
+  try {
+    let perm = await (entry.handle as any).queryPermission({ mode: 'readwrite' });
+    if (perm !== 'granted') {
+      perm = await (entry.handle as any).requestPermission({ mode: 'readwrite' });
+    }
+    return perm === 'granted' ? entry : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Prompts user to pick a directory and adds it to the folder list. */
+export async function addLocalFolder(): Promise<SyncFolderEntry | null> {
   if (!('showDirectoryPicker' in window)) {
     throw new Error(
       'Your browser does not support the File System Access API. Please use Chrome or Edge.'
@@ -80,46 +167,79 @@ export async function pickLocalFolder(): Promise<FileSystemDirectoryHandle | nul
   }
   try {
     const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-    await set(HANDLE_KEY, handle);
-    const info: FolderInfo = { name: handle.name, savedAt: Date.now() };
-    await set(INFO_KEY, info);
-    return handle;
+    const id = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const entry: SyncFolderEntry = {
+      id,
+      handle,
+      info: { id, name: handle.name, savedAt: Date.now() },
+    };
+    
+    const existing = await getLocalFolders();
+    // Check if folder already exists (by name — handles can't be compared)
+    const alreadyExists = existing.some(f => f.info.name === handle.name);
+    if (alreadyExists) {
+      throw new Error(`Folder "${handle.name}" is already added.`);
+    }
+    
+    existing.push(entry);
+    await set(FOLDERS_KEY, existing);
+    return entry;
   } catch (err: any) {
     if (err.name === 'AbortError') return null; // user cancelled
     throw err;
   }
 }
 
-/** Returns the persisted directory handle (re-requesting permission if needed). */
+/** Remove a folder from the list by ID. */
+export async function removeLocalFolder(id: string): Promise<void> {
+  const existing = await getLocalFolders();
+  const filtered = existing.filter(f => f.id !== id);
+  await set(FOLDERS_KEY, filtered);
+}
+
+/** Clear all folder entries. */
+export async function clearAllLocalFolders(): Promise<void> {
+  await del(FOLDERS_KEY);
+  // Also clean legacy keys if they exist
+  await del(LEGACY_HANDLE_KEY);
+  await del(LEGACY_INFO_KEY);
+}
+
+// ─── Backward Compat (single-folder access for simpler consumers) ────────────
+
+/** Returns the first folder's handle, for backward compatibility. */
 export async function getLocalFolder(): Promise<FileSystemDirectoryHandle | null> {
+  const folders = await getLocalFolders();
+  if (folders.length === 0) return null;
+  
+  const entry = folders[0];
   try {
-    const handle: FileSystemDirectoryHandle | undefined = await get(HANDLE_KEY);
-    if (!handle) return null;
-
-    // Check / request read permission
-    let perm = await handle.queryPermission({ mode: 'readwrite' });
+    let perm = await (entry.handle as any).queryPermission({ mode: 'readwrite' });
     if (perm !== 'granted') {
-      perm = await handle.requestPermission({ mode: 'readwrite' });
+      perm = await (entry.handle as any).requestPermission({ mode: 'readwrite' });
     }
-    return perm === 'granted' ? handle : null;
+    return perm === 'granted' ? entry.handle : null;
   } catch {
     return null;
   }
 }
 
-/** Returns the saved folder metadata (name + timestamp) WITHOUT requiring permission. */
+/** Returns info for the first folder (backward compat). */
 export async function getLocalFolderInfo(): Promise<FolderInfo | null> {
-  try {
-    return (await get(INFO_KEY)) ?? null;
-  } catch {
-    return null;
-  }
+  const folders = await getLocalFolders();
+  if (folders.length === 0) return null;
+  return { name: folders[0].info.name, savedAt: folders[0].info.savedAt };
 }
 
-/** Clears the persisted folder handle and info. */
+/** Legacy: prompts user and sets as the ONLY folder. Use addLocalFolder() instead. */
+export async function pickLocalFolder(): Promise<FileSystemDirectoryHandle | null> {
+  const entry = await addLocalFolder();
+  return entry ? entry.handle : null;
+}
+
+/** Legacy: clears all folders. */
 export async function clearLocalFolder(): Promise<void> {
-  await del(HANDLE_KEY);
-  await del(INFO_KEY);
+  await clearAllLocalFolders();
 }
 
 // ─── File Reading ─────────────────────────────────────────────────────────────

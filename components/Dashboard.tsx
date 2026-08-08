@@ -1,10 +1,10 @@
 'use client';
-import { Folder, HardDrive, Cloud, FileText, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2 } from 'lucide-react';
+import { Folder, HardDrive, Cloud, FileText, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
-import { getLocalFolder, getFolderStats, getLocalFolderInfo, FolderStats, FolderInfo } from '../lib/localFolder';
+import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, FolderStats, SyncFolder } from '../lib/localFolder';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -33,15 +33,20 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 }
 
+interface FolderWithStats {
+  folder: SyncFolder;
+  stats: FolderStats | null;
+  loading: boolean;
+}
+
 export const Dashboard = React.memo(function Dashboard() {
   const [user, setUser] = useState<OAuthUser | null>(null);
   const [quota, setQuota] = useState<DriveQuota | null>(null);
   const [recentFiles, setRecentFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Local folder state
-  const [localFolderInfo, setLocalFolderInfo] = useState<FolderInfo | null>(null);
-  const [localStats, setLocalStats] = useState<FolderStats | null>(null);
+  // Multi-folder state
+  const [folderEntries, setFolderEntries] = useState<FolderWithStats[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
 
   const loadDriveData = useCallback(async () => {
@@ -65,15 +70,28 @@ export const Dashboard = React.memo(function Dashboard() {
   const loadLocalData = useCallback(async () => {
     setLoadingLocal(true);
     try {
-      const info = await getLocalFolderInfo();
-      setLocalFolderInfo(info);
-      if (info) {
-        const handle = await getLocalFolder();
-        if (handle) {
-          const stats = await getFolderStats(handle);
-          setLocalStats(stats);
+      const infos = await getLocalFolderInfos();
+      
+      // Initialize entries with loading state
+      const entries: FolderWithStats[] = infos.map(f => ({ folder: f, stats: null, loading: true }));
+      setFolderEntries(entries);
+      
+      // Load stats for each folder in parallel
+      const promises = infos.map(async (f) => {
+        try {
+          const entry = await getLocalFolderById(f.id);
+          if (entry) {
+            const stats = await getFolderStats(entry.handle);
+            return { folder: f, stats, loading: false };
+          }
+          return { folder: f, stats: null, loading: false };
+        } catch {
+          return { folder: f, stats: null, loading: false };
         }
-      }
+      });
+      
+      const results = await Promise.all(promises);
+      setFolderEntries(results);
     } catch (err) {
       console.error(err);
     } finally {
@@ -113,6 +131,16 @@ export const Dashboard = React.memo(function Dashboard() {
     URL.revokeObjectURL(dataUri);
   };
 
+  // Aggregate stats across all folders
+  const aggregateStats = folderEntries.reduce((acc, e) => {
+    if (e.stats) {
+      acc.fileCount += e.stats.fileCount;
+      acc.dirCount += e.stats.dirCount;
+      acc.totalSize += e.stats.totalSize;
+    }
+    return acc;
+  }, { fileCount: 0, dirCount: 0, totalSize: 0 });
+
   // Google Drive Stats
   const driveUsed = quota ? parseInt(quota.usageInDrive || '0') : 0;
   const trashUsed = quota ? parseInt(quota.usageInDriveTrash || '0') : 0;
@@ -136,57 +164,88 @@ export const Dashboard = React.memo(function Dashboard() {
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
-      <header className="px-8 py-6 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-950/80 backdrop-blur-md z-10">
+      {/* Header - NO backdrop-filter */}
+      <header className="px-8 py-6 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-950/95 z-10">
         <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Dashboard</h2>
       </header>
       
       <div className="p-8 space-y-8 flex-1">
         
         {/* ── Storage Stats ── */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeInUp">
           
-          {/* Local Folder Storage */}
+          {/* Local Folders Storage (Aggregate) */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
                   <Folder size={20} />
                 </div>
-                <h3 className="font-medium text-neutral-300">Local PC Folder</h3>
+                <h3 className="font-medium text-neutral-300">Local PC Folders</h3>
               </div>
+              {folderEntries.length > 0 && (
+                <span className="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">
+                  {folderEntries.length} folder{folderEntries.length !== 1 ? 's' : ''}
+                </span>
+              )}
             </div>
 
             {loadingLocal ? (
               <div className="flex items-center gap-2 text-neutral-400 py-8 justify-center">
                 <Loader2 size={18} className="animate-spin" />
-                <span className="text-sm">Loading local folder...</span>
+                <span className="text-sm">Loading folders...</span>
               </div>
-            ) : !localFolderInfo ? (
+            ) : folderEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-center py-6">
                 <HardDrive className="w-10 h-10 text-neutral-700 mb-2" />
-                <p className="text-sm font-medium text-neutral-300">No folder selected</p>
-                <p className="text-xs text-neutral-500 mt-1">Go to Settings to pick a PC folder</p>
+                <p className="text-sm font-medium text-neutral-300">No folders added</p>
+                <p className="text-xs text-neutral-500 mt-1">Go to Files tab to add a folder</p>
               </div>
             ) : (
               <>
+                {/* Aggregate stats */}
                 <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-3xl font-bold text-neutral-100">{localStats ? formatBytes(localStats.totalSize) : '--'}</span>
-                  <span className="text-neutral-400 font-medium">total size</span>
+                  <span className="text-3xl font-bold text-neutral-100">{formatBytes(aggregateStats.totalSize)}</span>
+                  <span className="text-neutral-400 font-medium">total across all folders</span>
                 </div>
-                
-                <p className="text-xs text-blue-400 font-medium truncate mb-4">
-                  📁 {localFolderInfo.name}
-                </p>
 
-                <div className="bg-neutral-800/50 rounded-xl p-4 grid grid-cols-2 gap-4">
+                <div className="bg-neutral-800/50 rounded-xl p-4 grid grid-cols-3 gap-4">
                   <div>
                     <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Files</p>
-                    <p className="text-xl font-semibold text-neutral-200">{localStats?.fileCount ?? '--'}</p>
+                    <p className="text-xl font-semibold text-neutral-200">{aggregateStats.fileCount}</p>
                   </div>
                   <div>
                     <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Folders</p>
-                    <p className="text-xl font-semibold text-neutral-200">{localStats?.dirCount ?? '--'}</p>
+                    <p className="text-xl font-semibold text-neutral-200">{aggregateStats.dirCount}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Sources</p>
+                    <p className="text-xl font-semibold text-neutral-200">{folderEntries.length}</p>
+                  </div>
+                </div>
+                
+                {/* Per-folder breakdown (horizontal scroll) */}
+                <div className="flex gap-2 overflow-x-auto pb-1 mt-1 stagger-children">
+                  {folderEntries.map((entry) => (
+                    <div
+                      key={entry.folder.id}
+                      className="shrink-0 bg-neutral-800/40 border border-neutral-700/50 rounded-xl px-3.5 py-2.5 min-w-[140px]"
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <FolderOpen size={13} className="text-blue-400 shrink-0" />
+                        <p className="text-xs font-medium text-neutral-300 truncate">{entry.folder.name}</p>
+                      </div>
+                      {entry.loading ? (
+                        <Loader2 size={12} className="animate-spin text-neutral-500" />
+                      ) : entry.stats ? (
+                        <p className="text-[11px] text-neutral-500">
+                          {entry.stats.fileCount} files · {formatBytes(entry.stats.totalSize)}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-neutral-600">No access</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </>
             )}
@@ -218,7 +277,7 @@ export const Dashboard = React.memo(function Dashboard() {
 
                   <div className="w-full bg-neutral-800 rounded-full h-1.5 mt-3 mb-3 overflow-hidden">
                     <div
-                      className={`h-1.5 rounded-full transition-all ${cloudUsedPercent > 80 ? 'bg-red-500' : cloudUsedPercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                      className={`h-1.5 rounded-full transition-all duration-700 ease-out ${cloudUsedPercent > 80 ? 'bg-red-500' : cloudUsedPercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                       style={{ width: `${Math.min(cloudUsedPercent, 100)}%` }}
                     />
                   </div>
@@ -268,7 +327,7 @@ export const Dashboard = React.memo(function Dashboard() {
         </section>
 
         {/* ── Activity Log ── */}
-        <section>
+        <section className="animate-fadeInUp" style={{ animationDelay: '100ms' }}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-neutral-100">Recent Drive Activity</h3>
             <button 
@@ -294,9 +353,9 @@ export const Dashboard = React.memo(function Dashboard() {
                  <p className="text-sm font-medium text-neutral-300">Loading activity...</p>
                </div>
             ) : recentFiles.length > 0 ? (
-              <div className="divide-y divide-neutral-800">
+              <div className="divide-y divide-neutral-800 stagger-children">
                 {recentFiles.map((item, i) => (
-                  <div key={i} className="p-4 flex items-center justify-between hover:bg-neutral-800/50 transition-colors">
+                  <div key={i} className="p-4 flex items-center justify-between hover:bg-neutral-800/50 transition-colors duration-150">
                     <div className="flex items-center gap-4">
                       <div className={`p-2 rounded-lg bg-emerald-500/10 text-emerald-400`}>
                         {item.iconLink ? (

@@ -34,7 +34,7 @@ export const AccountsView = React.memo(function AccountsView() {
 
   return (
     <div className="h-full flex flex-col">
-      <header className="px-8 py-6 border-b border-neutral-800 sticky top-0 bg-neutral-950/80 backdrop-blur-md z-10">
+      <header className="px-8 py-6 border-b border-neutral-800 sticky top-0 bg-neutral-950/95 z-10">
         <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Cloud Accounts</h2>
         <p className="text-sm text-neutral-400 mt-1">Manage your connected cloud storage providers.</p>
       </header>

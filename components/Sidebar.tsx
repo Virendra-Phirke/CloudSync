@@ -35,19 +35,21 @@ export function Sidebar({ activeTab, setActiveTab, syncStatus, onOpenTheme }: Si
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
+              aria-label={`${item.label} tab`}
+              aria-current={isActive ? 'page' : undefined}
               className={clsx(
-                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative",
-                isActive ? "text-primary bg-primary/10" : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground"
+                "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                isActive ? "text-primary bg-primary/10" : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground hover:scale-[1.02] active:scale-[0.98]"
               )}
             >
-              <Icon size={18} className={isActive ? "text-primary" : "text-sidebar-foreground/50"} />
+              <Icon size={18} className={isActive ? "text-primary" : "text-sidebar-foreground/50"} aria-hidden="true" />
               {item.label}
               {isActive && (
                 <motion.div 
                   layoutId="activeTabIndicator" 
                   className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full"
                   initial={false}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}
             </button>
@@ -58,9 +60,10 @@ export function Sidebar({ activeTab, setActiveTab, syncStatus, onOpenTheme }: Si
       <div className="mt-auto pt-4 border-t border-sidebar-border space-y-4">
         <button 
           onClick={onOpenTheme}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground transition-colors"
+          aria-label="Open theme settings"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar"
         >
-          <Palette size={18} className="text-sidebar-foreground/50" />
+          <Palette size={18} className="text-sidebar-foreground/50" aria-hidden="true" />
           Theme
         </button>
         <div className="px-2">
