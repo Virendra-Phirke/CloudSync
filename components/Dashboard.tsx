@@ -2,6 +2,7 @@
 import { Folder, HardDrive, Cloud, FileText, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { motion } from 'motion/react';
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, FolderStats, SyncFolder } from '../lib/localFolder';
@@ -166,6 +167,16 @@ export const Dashboard = React.memo(function Dashboard() {
     { name: 'Free', value: 1, color: '#262626' },
   ];
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+  
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+  };
+
   return (
     <div className="h-full flex flex-col overflow-y-auto">
       {/* Header */}
@@ -173,13 +184,18 @@ export const Dashboard = React.memo(function Dashboard() {
         <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Dashboard</h2>
       </header>
       
-      <div className="p-4 md:p-8 space-y-8 flex-1">
+      <motion.div 
+        variants={containerVariants}
+        initial="hidden"
+        animate="show"
+        className="p-4 md:p-8 space-y-8 flex-1"
+      >
         
         {/* ── Storage Stats ── */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeInUp">
+        <motion.section variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
           {/* Local Folders Storage (Aggregate) */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
+          <motion.div whileHover={{ y: -4, transition: { duration: 0.2 } }} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
@@ -274,11 +290,11 @@ export const Dashboard = React.memo(function Dashboard() {
                 </div>
               </>
             )}
-          </div>
+          </motion.div>
 
           {/* Google Drive Storage */}
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-center gap-6">
-            <div className="flex-1 w-full min-w-0">
+          <motion.div whileHover={{ y: -4, transition: { duration: 0.2 } }} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex items-center gap-6">
+            <div className="flex-1 flex flex-col justify-between h-full">
               <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
                   <Cloud size={20} />
@@ -355,11 +371,11 @@ export const Dashboard = React.memo(function Dashboard() {
                 </ResponsiveContainer>
               </div>
             )}
-          </div>
-        </section>
+          </motion.div>
+        </motion.section>
 
         {/* ── Activity Log ── */}
-        <section className="animate-fadeInUp" style={{ animationDelay: '100ms' }}>
+        <motion.section variants={itemVariants}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-neutral-100">Recent Drive Activity</h3>
             <button 
@@ -395,11 +411,13 @@ export const Dashboard = React.memo(function Dashboard() {
               ))}
             </div>
           ) : recentFiles.length > 0 ? (
-              <div className="divide-y divide-neutral-800 stagger-children">
+              <motion.div variants={containerVariants} initial="hidden" animate="show" className="divide-y divide-neutral-800">
                 {recentFiles.map((item, i) => (
-                  <div 
+                  <motion.div 
+                    variants={itemVariants}
+                    whileHover={{ x: 4, backgroundColor: 'rgba(38, 38, 38, 0.5)' }}
                     key={i} 
-                    className="p-4 flex items-center justify-between hover:bg-neutral-800/50 transition-colors duration-150 cursor-pointer group"
+                    className="p-4 flex items-center justify-between transition-colors duration-150 cursor-pointer group"
                     onClick={() => {
                       setPreviewFile({
                         id: item.id,
@@ -436,9 +454,9 @@ export const Dashboard = React.memo(function Dashboard() {
                     <span className="text-xs text-neutral-500 font-medium group-hover:text-neutral-400 transition-colors">
                       {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             ) : (
               <div className="p-12 text-center">
                 <div className="flex flex-col items-center justify-center text-neutral-500">
@@ -449,8 +467,8 @@ export const Dashboard = React.memo(function Dashboard() {
               </div>
             )}
           </div>
-        </section>
-      </div>
+        </motion.section>
+      </motion.div>
 
       {previewFile && (
         <FilePreviewModal

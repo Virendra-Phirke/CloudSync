@@ -9,6 +9,7 @@ import { SettingsView } from '../components/SettingsView';
 import { ThemeSidebar } from '../components/ThemeSidebar';
 import { handleRedirectCallback } from '../lib/oauth';
 import { useToast } from '../components/ToastContext';
+import { AnimatePresence, motion } from 'motion/react';
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -30,6 +31,12 @@ export default function Page() {
       }
     );
   }, [showToast]);
+
+  const pageVariants = {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
+    exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: 'easeIn' } }
+  };
 
   return (
     <div className="flex h-screen bg-neutral-950 text-neutral-100 overflow-hidden w-full relative">
@@ -53,19 +60,29 @@ export default function Page() {
         <Menu size={24} />
       </button>
 
-      <main className="flex-1 overflow-y-auto relative h-full">
-        <div className={activeTab === 'dashboard' ? 'h-full' : 'hidden'}>
-          <Dashboard />
-        </div>
-        <div className={activeTab === 'files' ? 'h-full' : 'hidden'}>
-          <FilesView />
-        </div>
-        <div className={activeTab === 'accounts' ? 'h-full' : 'hidden'}>
-          <AccountsView />
-        </div>
-        <div className={activeTab === 'settings' ? 'h-full' : 'hidden'}>
-          <SettingsView />
-        </div>
+      <main className="flex-1 overflow-y-auto relative h-full bg-neutral-950">
+        <AnimatePresence mode="wait">
+          {activeTab === 'dashboard' && (
+            <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+              <Dashboard />
+            </motion.div>
+          )}
+          {activeTab === 'files' && (
+            <motion.div key="files" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+              <FilesView />
+            </motion.div>
+          )}
+          {activeTab === 'accounts' && (
+            <motion.div key="accounts" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+              <AccountsView />
+            </motion.div>
+          )}
+          {activeTab === 'settings' && (
+            <motion.div key="settings" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+              <SettingsView />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
       <ThemeSidebar isOpen={isThemeOpen} onClose={() => setIsThemeOpen(false)} />
     </div>

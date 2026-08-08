@@ -1,7 +1,7 @@
 'use client';
 import {
   Search, Folder, MoreVertical, UploadCloud, 
-  X, Download, CheckCircle, HardDrive,
+  X, Download, CheckCircle, Check, HardDrive,
   RefreshCw, FolderOpen, CloudOff, Loader2,
   LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown
 } from 'lucide-react';
@@ -517,9 +517,11 @@ export const FilesView = React.memo(function FilesView() {
         {/* Folder Selection Row */}
         <div className="flex items-center gap-3 mt-4 md:mt-0">
           <div className="relative">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
-              className="flex items-center justify-between min-w-[200px] max-w-[280px] gap-3 px-4 py-2 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/80 rounded-xl transition-all shadow-sm group"
+              className="flex items-center justify-between min-w-[200px] max-w-[280px] gap-3 px-4 py-2 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/80 rounded-xl transition-colors shadow-sm group"
             >
               <div className="flex items-center gap-2.5 truncate">
                 <Folder size={16} className="text-blue-400 shrink-0" />
@@ -528,7 +530,7 @@ export const FilesView = React.memo(function FilesView() {
                 </span>
               </div>
               <ChevronDown size={14} className={`text-neutral-500 shrink-0 transition-transform duration-200 ${isFolderDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
+            </motion.button>
 
             <AnimatePresence>
               {isFolderDropdownOpen && (
@@ -744,87 +746,106 @@ export const FilesView = React.memo(function FilesView() {
                 )}
               </div>
             ) : filteredFiles.length > 0 ? (
-              /* ── Grid View ── */
-              viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 stagger-children">
-                  {filteredFiles.map((file) => {
-                    const typeInfo = getFileTypeInfo(file.name, file.mimeType, file.isDirectory);
-                    const TypeIcon = typeInfo.icon;
-                    const badge = statusBadge[file.status];
-                    const isSelected = selectedIds.has(file.id);
-                    
-                    return (
-                      <div
-                        key={file.id}
-                        onClick={() => handleRowClick(file)}
-                        className={`group relative bg-neutral-900 border rounded-2xl p-4 cursor-pointer transition-all duration-200 hover:bg-neutral-800/70 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20 hover:-translate-y-0.5 ${
-                          isSelected ? 'border-blue-500/40 bg-blue-500/5 ring-1 ring-blue-500/20' : 'border-neutral-800'
-                        }`}
-                      >
-                        {/* Selection checkbox */}
-                        <div
-                          className={`absolute top-2.5 right-2.5 transition-opacity duration-150 flex items-center gap-1 ${
-                            isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                          }`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div onClick={(e) => handleSelectFile(e, file.id)} className="flex items-center">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {}}
-                              className="w-4 h-4 rounded border-neutral-600 bg-neutral-800 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                            />
-                          </div>
-                        </div>
+              <AnimatePresence mode="wait">
+                {viewMode === 'grid' ? (
+                  <motion.div 
+                    key="grid"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
+                  >
+                    <AnimatePresence>
+                      {filteredFiles.map((file) => {
+                        const typeInfo = getFileTypeInfo(file.name, file.mimeType, file.isDirectory);
+                        const TypeIcon = typeInfo.icon;
+                        const badge = statusBadge[file.status];
+                        const isSelected = selectedIds.has(file.id);
                         
-                        {/* File icon */}
-                        <div className={`w-12 h-12 rounded-xl ${typeInfo.bg} border ${typeInfo.borderColor} flex items-center justify-center mb-3 transition-transform duration-200 group-hover:scale-105`}>
-                          <TypeIcon size={22} className={typeInfo.color} />
-                        </div>
-                        
-                        {/* File name */}
-                        <p className="text-sm font-medium text-neutral-200 truncate mb-1" title={file.name}>
-                          {file.name}
-                        </p>
-                        
-                        {/* Meta */}
-                        <div className="flex items-center justify-between mt-1">
-                          <span className="text-xs text-neutral-500">{file.isDirectory ? 'Folder' : file.size}</span>
-                          <div className="flex items-center gap-2">
-                            {!file.isDirectory && file.driveId && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShareFiles([file]);
-                                }}
-                                className="text-neutral-500 hover:text-blue-400 p-1 rounded-md hover:bg-blue-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                                title="Share File"
-                              >
-                                <Share2 size={14} />
-                              </button>
+                        return (
+                          <motion.div
+                            layout
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.9 }}
+                            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                            key={file.id}
+                            onClick={() => handleRowClick(file)}
+                            className={`group relative bg-neutral-900 border rounded-2xl p-4 cursor-pointer transition-all duration-200 hover:bg-neutral-800/70 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20 ${
+                              isSelected ? 'border-blue-500/40 bg-blue-500/5 ring-1 ring-blue-500/20' : 'border-neutral-800'
+                            }`}
+                          >
+                            {/* Selection checkbox */}
+                            <div
+                              className={`absolute top-3 right-3 z-10 transition-all duration-200 ${
+                                isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
+                              }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelectFile(e, file.id);
+                              }}
+                            >
+                              <div className={`w-5 h-5 rounded-md flex items-center justify-center transition-colors border ${
+                                isSelected ? 'bg-blue-500 border-blue-500 text-white shadow-sm' : 'bg-neutral-900/80 border-neutral-600 text-transparent hover:border-neutral-400 backdrop-blur-sm'
+                              }`}>
+                                <Check size={14} strokeWidth={3} className={`transition-opacity duration-200 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
+                              </div>
+                            </div>
+                            
+                            {/* File icon */}
+                            <div className={`w-12 h-12 rounded-xl ${typeInfo.bg} border ${typeInfo.borderColor} flex items-center justify-center mb-3 transition-transform duration-200 group-hover:scale-105`}>
+                              <TypeIcon size={22} className={typeInfo.color} />
+                            </div>
+                            
+                            {/* File name */}
+                            <p className="text-sm font-medium text-neutral-200 truncate mb-1" title={file.name}>
+                              {file.name}
+                            </p>
+                            
+                            {/* Meta */}
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-xs text-neutral-500">{file.isDirectory ? 'Folder' : file.size}</span>
+                              <div className="flex items-center gap-2">
+                                {!file.isDirectory && file.driveId && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShareFiles([file]);
+                                    }}
+                                    className="text-neutral-500 hover:text-blue-400 p-1 rounded-md hover:bg-blue-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                                    title="Share File"
+                                  >
+                                    <Share2 size={14} />
+                                  </button>
+                                )}
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                                  file.status === 'Synced' ? 'bg-emerald-400' :
+                                  file.status === 'Syncing' ? 'bg-blue-400 animate-pulse' :
+                                  file.status === 'Local Only' ? 'bg-amber-400' : 'bg-neutral-600'
+                                }`} title={file.status} />
+                              </div>
+                            </div>
+                            
+                            {/* Search path hint */}
+                            {searchQuery && file.path !== file.name && (
+                              <div className="text-[10px] text-neutral-600 mt-1 truncate" title={file.path}>
+                                {file.path}
+                              </div>
                             )}
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${
-                              file.status === 'Synced' ? 'bg-emerald-400' :
-                              file.status === 'Syncing' ? 'bg-blue-400 animate-pulse' :
-                              file.status === 'Local Only' ? 'bg-amber-400' : 'bg-neutral-600'
-                            }`} title={file.status} />
-                          </div>
-                        </div>
-                        
-                        {/* Search path hint */}
-                        {searchQuery && file.path !== file.name && (
-                          <div className="text-[10px] text-neutral-600 mt-1 truncate" title={file.path}>
-                            {file.path}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </motion.div>
+                ) : (
                 /* ── List View ── */
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden overflow-x-auto">
+                <motion.div 
+                  key="list"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden overflow-x-auto"
+                >
                   <table className="w-full text-left border-collapse min-w-[600px]">
                     <thead>
                       <tr className="border-b border-neutral-800 bg-neutral-900/50">
@@ -910,11 +931,12 @@ export const FilesView = React.memo(function FilesView() {
                       })}
                     </tbody>
                   </table>
-                </div>
-              )
+                </motion.div>
+              )}
+              </AnimatePresence>
             ) : (
               /* Empty state */
-              <div className="flex flex-col items-center justify-center py-20 gap-2 text-neutral-500 animate-fadeInUp">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-20 gap-2 text-neutral-500">
                 {searchQuery ? (
                   <>
                     <Search size={32} className="text-neutral-700 mb-1" />
@@ -927,21 +949,25 @@ export const FilesView = React.memo(function FilesView() {
                     <p className="text-sm font-medium text-neutral-300">Folder is empty</p>
                   </>
                 )}
-              </div>
+              </motion.div>
             )}
           </>
         )}
       </div>
 
       {/* Floating Action Button (FAB) for Add Folder */}
-      <button
+      <motion.button
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={handleAddFolder}
         disabled={addingFolder}
         title="Add New Folder"
-        className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-40 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-40 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {addingFolder ? <Loader2 size={24} className="animate-spin" /> : <Plus size={24} />}
-      </button>
+      </motion.button>
 
       {/* File Preview Modal */}
       <AnimatePresence>

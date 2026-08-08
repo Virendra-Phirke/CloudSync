@@ -77,57 +77,69 @@ export function Sidebar({
           </button>
         </div>
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-1 relative">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
-            <button
+            <motion.button
               key={item.id}
               onClick={() => {
                 setActiveTab(item.id);
                 setIsMobileOpen(false); // Auto close on mobile
               }}
+              whileHover={{ scale: 1.02, x: isActive ? 0 : 4 }}
+              whileTap={{ scale: 0.98 }}
               aria-label={`${item.label} tab`}
               title={isCollapsed ? item.label : undefined}
               aria-current={isActive ? 'page' : undefined}
               className={clsx(
-                "w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                "w-full flex items-center gap-3 py-2.5 rounded-xl text-sm font-medium relative focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
                 isCollapsed ? "max-md:px-3 md:justify-center md:px-0" : "px-3",
-                isActive ? "text-primary bg-primary/10" : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground hover:scale-[1.02] active:scale-[0.98]"
+                isActive ? "text-primary" : "text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground"
               )}
             >
-              <Icon size={18} className={clsx("shrink-0", isActive ? "text-primary" : "text-sidebar-foreground/50")} aria-hidden="true" />
-              <span className={clsx("whitespace-nowrap transition-all", isCollapsed ? "md:hidden" : "")}>{item.label}</span>
               {isActive && (
                 <motion.div 
-                  layoutId="activeTabIndicator" 
-                  className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full"
+                  layoutId="activeTabBackground" 
+                  className="absolute inset-0 bg-primary/10 rounded-xl"
                   initial={false}
                   transition={{ type: "spring", stiffness: 350, damping: 30 }}
                 />
               )}
-            </button>
+              <Icon size={18} className={clsx("shrink-0 relative z-10", isActive ? "text-primary" : "text-sidebar-foreground/50")} aria-hidden="true" />
+              <span className={clsx("whitespace-nowrap transition-all relative z-10", isCollapsed ? "md:hidden" : "")}>{item.label}</span>
+              {isActive && (
+                <motion.div 
+                  layoutId="activeTabIndicator" 
+                  className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full z-10"
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                />
+              )}
+            </motion.button>
           );
         })}
       </nav>
 
       <div className="mt-auto pt-4 border-t border-sidebar-border flex flex-col gap-4">
-        <button 
+        <motion.button 
           onClick={() => {
             onOpenTheme();
             setIsMobileOpen(false);
           }}
+          whileHover={{ scale: 1.02, x: 4 }}
+          whileTap={{ scale: 0.98 }}
           aria-label="Open theme settings"
           title={isCollapsed ? "Theme settings" : undefined}
           className={clsx(
-            "w-full flex items-center gap-3 py-2 rounded-xl text-sm font-medium text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+            "w-full flex items-center gap-3 py-2 rounded-xl text-sm font-medium text-sidebar-foreground/70 hover:bg-white/5 hover:text-sidebar-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
             isCollapsed ? "max-md:px-3 md:justify-center md:px-0" : "px-3"
           )}
         >
-          <Palette size={18} className="text-sidebar-foreground/50 shrink-0" aria-hidden="true" />
-          <span className={clsx("whitespace-nowrap", isCollapsed ? "md:hidden" : "")}>Theme</span>
-        </button>
+          <Palette size={18} className="text-sidebar-foreground/50 shrink-0 relative z-10" aria-hidden="true" />
+          <span className={clsx("whitespace-nowrap relative z-10", isCollapsed ? "md:hidden" : "")}>Theme</span>
+        </motion.button>
         
         <div className={clsx("flex items-center", isCollapsed ? "max-md:px-2 max-md:gap-3 md:justify-center md:px-0" : "gap-3 px-2")}>
           <div className="relative shrink-0" title={syncStatus}>
