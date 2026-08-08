@@ -288,3 +288,30 @@ export async function deleteDriveFile(fileId: string): Promise<void> {
     throw new Error(errMsg);
   }
 }
+
+export async function shareDriveFile(fileId: string, role: 'reader' | 'writer' = 'reader'): Promise<string> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Not authenticated to share');
+
+  const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ type: 'anyone', role })
+  });
+
+  if (!permRes.ok) {
+    const err = await permRes.json();
+    throw new Error(err.error?.message || 'Failed to update sharing permissions');
+  }
+
+  const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  
+  if (!fileRes.ok) throw new Error('Failed to retrieve share link');
+  const data = await fileRes.json();
+  return data.webViewLink;
+}

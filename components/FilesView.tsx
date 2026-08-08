@@ -3,7 +3,7 @@ import {
   Search, Folder, MoreVertical, UploadCloud, 
   X, Download, CheckCircle, HardDrive,
   RefreshCw, FolderOpen, CloudOff, Loader2,
-  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2,
+  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -17,6 +17,7 @@ import { syncLocalFolderToDrive } from '../lib/syncEngine';
 import { useToast } from './ToastContext';
 import { FilePreviewModal, getFileTypeInfo } from './FilePreviewModal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { ShareModal } from './ShareModal';
 import { removeSyncState } from '../lib/syncState';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ export const FilesView = React.memo(function FilesView() {
   const [isDragging, setIsDragging] = useState(false);
   const [syncProgressMsg, setSyncProgressMsg] = useState('');
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
+  const [shareFile, setShareFile] = useState<{ id: string; name: string; driveId?: string } | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const userRef = useRef<OAuthUser | null>(null);
   userRef.current = user;
@@ -669,11 +671,25 @@ export const FilesView = React.memo(function FilesView() {
                         {/* Meta */}
                         <div className="flex items-center justify-between mt-1">
                           <span className="text-xs text-neutral-500">{file.isDirectory ? 'Folder' : file.size}</span>
-                          <span className={`w-2 h-2 rounded-full shrink-0 ${
-                            file.status === 'Synced' ? 'bg-emerald-400' :
-                            file.status === 'Syncing' ? 'bg-blue-400 animate-pulse' :
-                            file.status === 'Local Only' ? 'bg-amber-400' : 'bg-neutral-600'
-                          }`} title={file.status} />
+                          <div className="flex items-center gap-2">
+                            {!file.isDirectory && file.driveId && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShareFile({ id: file.id, name: file.name, driveId: file.driveId });
+                                }}
+                                className="text-neutral-500 hover:text-blue-400 p-1 rounded-md hover:bg-blue-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                                title="Share File"
+                              >
+                                <Share2 size={14} />
+                              </button>
+                            )}
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${
+                              file.status === 'Synced' ? 'bg-emerald-400' :
+                              file.status === 'Syncing' ? 'bg-blue-400 animate-pulse' :
+                              file.status === 'Local Only' ? 'bg-amber-400' : 'bg-neutral-600'
+                            }`} title={file.status} />
+                          </div>
                         </div>
                         
                         {/* Search path hint */}
@@ -754,9 +770,20 @@ export const FilesView = React.memo(function FilesView() {
                             <td className="px-5 py-3.5 text-sm text-neutral-400">{file.size}</td>
                             <td className="px-5 py-3.5 text-sm text-neutral-400">{file.date}</td>
                             <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                              <button className="text-neutral-500 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <MoreVertical size={16} />
-                              </button>
+                              {!file.isDirectory && file.driveId ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShareFile({ id: file.id, name: file.name, driveId: file.driveId });
+                                  }}
+                                  className="text-neutral-500 hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                                  title="Share File"
+                                >
+                                  <Share2 size={16} />
+                                </button>
+                              ) : (
+                                <div className="w-7 h-7 inline-block"></div>
+                              )}
                             </td>
                           </tr>
                         );
@@ -793,6 +820,17 @@ export const FilesView = React.memo(function FilesView() {
             file={previewFile}
             onClose={closePreview}
             statusBadge={statusBadge}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {shareFile && (
+          <ShareModal
+            isOpen={!!shareFile}
+            onClose={() => setShareFile(null)}
+            file={shareFile}
           />
         )}
       </AnimatePresence>
