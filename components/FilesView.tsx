@@ -3,7 +3,7 @@ import {
   Search, Folder, MoreVertical, UploadCloud, 
   X, Download, CheckCircle, HardDrive,
   RefreshCw, FolderOpen, CloudOff, Loader2,
-  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2
+  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -78,6 +78,7 @@ export const FilesView = React.memo(function FilesView() {
   const [currentConflicts, setCurrentConflicts] = useState<ConflictItem[]>([]);
   const [resolveConflictFn, setResolveConflictFn] = useState<((res: 'local' | 'drive' | 'skip') => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const userRef = useRef<OAuthUser | null>(null);
   userRef.current = user;
 
@@ -341,39 +342,7 @@ export const FilesView = React.memo(function FilesView() {
 
   const closePreview = useCallback(() => setPreviewFile(null), []);
 
-  // Drag and drop
-  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(true); }, []);
-  const handleDragLeave = useCallback((e: React.DragEvent) => { e.preventDefault(); setIsDragging(false); }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (!e.dataTransfer.files?.length) return;
-
-    const dropped = Array.from(e.dataTransfer.files);
-    for (const file of dropped) {
-      const tempId = `upload-${Date.now()}-${file.name}`;
-      setFiles((prev) => [{
-        id: tempId, name: file.name, type: 'file', isDirectory: false,
-        status: 'Syncing', size: formatBytes(file.size), sizeBytes: file.size,
-        path: currentPath ? `${currentPath}/${file.name}` : file.name,
-        date: formatDate(Date.now()), mimeType: file.type,
-      }, ...prev]);
-
-      try {
-        const uploaded = await uploadFileToDrive(file);
-        showToast(`${file.name} uploaded to Drive`, 'success');
-        setFiles((prev) => prev.map((f) => f.id === tempId
-          ? { ...f, id: uploaded.id, status: 'Synced', driveId: uploaded.id,
-              thumbnailLink: uploaded.thumbnailLink, iconLink: uploaded.iconLink }
-          : f
-        ));
-      } catch (err: any) {
-        showToast(`Failed to upload ${file.name}: ${err.message}`, 'error');
-        setFiles((prev) => prev.map((f) => f.id === tempId ? { ...f, status: 'Local Only' } : f));
-      }
-    }
-  }, [showToast, currentPath]);
 
   const handleDeleteFile = useCallback(async () => {
     if (!filesToDelete || filesToDelete.length === 0) return;
@@ -545,30 +514,73 @@ export const FilesView = React.memo(function FilesView() {
           </div>
         </div>
 
-        {/* Folder tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
-          {folders.map(folder => (
-            <button
-              key={folder.id}
-              onClick={() => setActiveFolderId(folder.id)}
-              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium transition-all duration-200 shrink-0 border ${
-                activeFolderId === folder.id
-                  ? 'bg-blue-600/10 text-blue-400 border-blue-500/30 shadow-sm'
-                  : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:bg-neutral-800 hover:text-neutral-200'
-              }`}
-            >
-              <Folder size={14} className={activeFolderId === folder.id ? 'text-blue-400' : 'text-neutral-500'} />
-              {folder.name}
-            </button>
-          ))}
+        {/* Folder Dropdown */}
+        <div className="relative">
           <button
-            onClick={handleAddFolder}
-            disabled={addingFolder}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-neutral-500 border border-dashed border-neutral-700 hover:border-neutral-500 hover:text-neutral-300 hover:bg-neutral-900 transition-all duration-200 shrink-0"
+            onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
+            className="flex items-center justify-between min-w-[200px] max-w-[280px] gap-3 px-4 py-2 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/80 rounded-xl transition-all shadow-sm group"
           >
-            {addingFolder ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-            Add Folder
+            <div className="flex items-center gap-2.5 truncate">
+              <Folder size={16} className="text-blue-400 shrink-0" />
+              <span className="text-sm font-medium text-neutral-200 truncate">
+                {activeFolder?.name || 'Select Folder'}
+              </span>
+            </div>
+            <ChevronDown size={14} className={`text-neutral-500 shrink-0 transition-transform duration-200 ${isFolderDropdownOpen ? 'rotate-180' : ''}`} />
           </button>
+
+          <AnimatePresence>
+            {isFolderDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setIsFolderDropdownOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 top-full mt-2 w-64 bg-neutral-900 border border-neutral-800 shadow-xl rounded-xl z-50 overflow-hidden"
+                >
+                  <div className="max-h-60 overflow-y-auto p-1.5 hide-scrollbar">
+                    {folders.map(folder => (
+                      <button
+                        key={folder.id}
+                        onClick={() => {
+                          setActiveFolderId(folder.id);
+                          setIsFolderDropdownOpen(false);
+                        }}
+                        className={`flex items-center justify-between w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                          activeFolderId === folder.id 
+                            ? 'bg-blue-500/10 text-blue-400' 
+                            : 'text-neutral-300 hover:bg-neutral-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 truncate mr-2">
+                          <Folder size={14} className={activeFolderId === folder.id ? 'text-blue-400' : 'text-neutral-500 shrink-0'} />
+                          <span className="truncate">{folder.name}</span>
+                        </div>
+                        {activeFolderId === folder.id && (
+                          <CheckCircle size={14} className="text-blue-400 shrink-0" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-1.5 border-t border-neutral-800 bg-neutral-900/50">
+                    <button
+                      onClick={() => {
+                        setIsFolderDropdownOpen(false);
+                        handleAddFolder();
+                      }}
+                      disabled={addingFolder}
+                      className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
+                    >
+                      {addingFolder ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
+                      Add New Folder
+                    </button>
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
       </header>
       
