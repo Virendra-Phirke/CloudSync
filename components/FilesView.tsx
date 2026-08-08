@@ -17,6 +17,7 @@ import { syncLocalFolderToDrive } from '../lib/syncEngine';
 import { useToast } from './ToastContext';
 import { FilePreviewModal, getFileTypeInfo } from './FilePreviewModal';
 import { ConfirmDialog } from './ConfirmDialog';
+import { removeSyncState } from '../lib/syncState';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -301,6 +302,7 @@ export const FilesView = React.memo(function FilesView() {
       for (const file of filesToDelete) {
         if (file.driveId) {
           await deleteDriveFile(file.driveId);
+          await removeSyncState(file.path);
         }
         successCount++;
         setFiles(prev => prev.filter(f => f.id !== file.id));

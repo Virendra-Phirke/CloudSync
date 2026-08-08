@@ -31,3 +31,16 @@ export async function saveSyncState(state: SyncStateMap): Promise<void> {
     console.warn('Failed to save sync state', err);
   }
 }
+
+/** Removes a specific file from the sync state to prevent stale hashes */
+export async function removeSyncState(filePath: string): Promise<void> {
+  try {
+    const state = await getSyncState();
+    if (state[filePath]) {
+      delete state[filePath];
+      await saveSyncState(state);
+    }
+  } catch (err) {
+    console.warn('Failed to remove sync state entry', err);
+  }
+}
