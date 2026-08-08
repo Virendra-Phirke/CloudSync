@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, FolderStats, SyncFolder } from '../lib/localFolder';
+import { FilePreviewModal } from './FilePreviewModal';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -48,6 +49,9 @@ export const Dashboard = React.memo(function Dashboard() {
   // Multi-folder state
   const [folderEntries, setFolderEntries] = useState<FolderWithStats[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
+
+  // File Preview Modal state
+  const [previewFile, setPreviewFile] = useState<any>(null);
 
   const loadDriveData = useCallback(async () => {
     setLoading(true);
@@ -355,24 +359,43 @@ export const Dashboard = React.memo(function Dashboard() {
             ) : recentFiles.length > 0 ? (
               <div className="divide-y divide-neutral-800 stagger-children">
                 {recentFiles.map((item, i) => (
-                  <div key={i} className="p-4 flex items-center justify-between hover:bg-neutral-800/50 transition-colors duration-150">
+                  <div 
+                    key={i} 
+                    className="p-4 flex items-center justify-between hover:bg-neutral-800/50 transition-colors duration-150 cursor-pointer group"
+                    onClick={() => {
+                      setPreviewFile({
+                        id: item.id,
+                        name: item.name,
+                        path: item.name, // Path is mocked as name since we don't have local folder structure
+                        mimeType: item.mimeType,
+                        size: formatBytes(parseInt(item.size || '0')),
+                        sizeBytes: parseInt(item.size || '0'),
+                        date: new Date(item.modifiedTime).toLocaleDateString(),
+                        status: 'Synced', // Assume synced since it's in recent drive activity
+                        driveId: item.id,
+                        isDirectory: item.mimeType === 'application/vnd.google-apps.folder',
+                        thumbnailLink: item.thumbnailLink,
+                        iconLink: item.iconLink,
+                      });
+                    }}
+                  >
                     <div className="flex items-center gap-4">
                       <div className={`p-2 rounded-lg bg-emerald-500/10 text-emerald-400`}>
                         {item.iconLink ? (
-                          <img src={item.iconLink} alt="Icon" className="w-[18px] h-[18px] object-contain" />
+                          <img src={item.iconLink} alt="Icon" className="w-[18px] h-[18px] object-contain group-hover:scale-110 transition-transform" />
                         ) : (
                           <FileIcon size={18} />
                         )}
                       </div>
                       <div>
-                        <p className="font-medium text-neutral-200 text-sm truncate max-w-[200px]" title={item.name}>{item.name}</p>
+                        <p className="font-medium text-neutral-200 text-sm truncate max-w-[200px] group-hover:text-emerald-400 transition-colors" title={item.name}>{item.name}</p>
                         <p className="text-xs text-neutral-400 flex items-center gap-1 mt-0.5">
                           <CheckCircle2 size={12} className="text-emerald-400" />
                           Modified in Cloud
                         </p>
                       </div>
                     </div>
-                    <span className="text-xs text-neutral-500 font-medium">
+                    <span className="text-xs text-neutral-500 font-medium group-hover:text-neutral-400 transition-colors">
                       {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -390,6 +413,20 @@ export const Dashboard = React.memo(function Dashboard() {
           </div>
         </section>
       </div>
+
+      {previewFile && (
+        <FilePreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+          statusBadge={{
+            'Synced': { cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: <Cloud size={14} />, label: 'Synced' },
+            'Local Only': { cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20', icon: <HardDrive size={14} />, label: 'Local Only' },
+            'Modified': { cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: <AlertCircle size={14} />, label: 'Modified' },
+            'Syncing': { cls: 'bg-sky-500/10 text-sky-400 border-sky-500/20', icon: <Loader2 size={14} className="animate-spin" />, label: 'Syncing' },
+            'Error': { cls: 'bg-red-500/10 text-red-400 border-red-500/20', icon: <AlertCircle size={14} />, label: 'Error' },
+          }}
+        />
+      )}
     </div>
   );
 });

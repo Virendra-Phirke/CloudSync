@@ -5,8 +5,9 @@ import {
   X, ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight,
   Download, ExternalLink, FileText, Image as ImageIcon,
   Film, Music, FileCode, FileArchive, File as FileIcon,
-  Folder, Maximize2, Minimize2, Loader2, AlertCircle,
+  Folder, Maximize2, Minimize2, Loader2, AlertCircle, CheckCircle2,
 } from 'lucide-react';
+import { getDriveFileBlob, updateDriveFile } from '../lib/drive';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -537,9 +538,11 @@ function DocxViewer({ file }: { file: File }) {
 
 // ─── Text/Code Viewer ──────────────────────────────────────────────────────────
 
-function TextViewer({ file }: { file: File }) {
+function TextViewer({ file, onSave }: { file: File; onSave?: (content: string) => Promise<void> }) {
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -556,6 +559,19 @@ function TextViewer({ file }: { file: File }) {
     return () => { cancelled = true; };
   }, [file]);
 
+  const handleSave = async () => {
+    if (!onSave) return;
+    setSaving(true);
+    try {
+      await onSave(content);
+      setIsEditing(false);
+    } catch (err) {
+      alert('Failed to save file');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center" role="status">
@@ -568,24 +584,50 @@ function TextViewer({ file }: { file: File }) {
 
   return (
     <motion.div
-      className="flex-1 overflow-auto bg-neutral-950"
+      className="flex-1 flex flex-col bg-neutral-950 overflow-hidden"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
       role="document"
-      aria-label={`Text file with ${lines.length} lines`}
     >
-      <div className="flex">
+      {/* Editor Toolbar */}
+      {onSave && (
+        <div className="flex items-center justify-end px-4 py-2 border-b border-neutral-800 bg-neutral-900 shrink-0 gap-2">
+          {isEditing ? (
+            <>
+              <button onClick={() => setIsEditing(false)} disabled={saving} className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-200 transition-colors">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50">
+                {saving ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Save
+              </button>
+            </>
+          ) : (
+            <button onClick={() => setIsEditing(true)} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded transition-colors">
+              <FileCode size={14} /> Edit
+            </button>
+          )}
+        </div>
+      )}
+      
+      <div className="flex-1 flex overflow-hidden">
         {/* Line Numbers */}
-        <div className="select-none text-right pr-4 pl-4 py-4 text-neutral-600 text-xs font-mono leading-6 border-r border-neutral-800 bg-neutral-900/50 shrink-0" aria-hidden="true">
+        <div className="select-none text-right pr-4 pl-4 py-4 text-neutral-600 text-xs font-mono leading-6 border-r border-neutral-800 bg-neutral-900/50 shrink-0 overflow-hidden" aria-hidden="true">
           {lines.map((_, i) => (
             <div key={i}>{i + 1}</div>
           ))}
         </div>
         {/* Code Content */}
-        <pre className="flex-1 p-4 text-neutral-200 text-sm font-mono leading-6 overflow-x-auto whitespace-pre" tabIndex={0}>
-          {content}
-        </pre>
+        {isEditing ? (
+          <textarea
+            className="flex-1 p-4 bg-transparent text-neutral-200 text-sm font-mono leading-6 resize-none focus:outline-none whitespace-pre overflow-auto"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            spellCheck={false}
+          />
+        ) : (
+          <pre className="flex-1 p-4 text-neutral-200 text-sm font-mono leading-6 overflow-auto whitespace-pre" tabIndex={0}>
+            {content}
+          </pre>
+        )}
       </div>
     </motion.div>
   );
@@ -615,13 +657,22 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
     let url: string | null = null;
 
     async function loadFile() {
-      if (!file.handle || file.isDirectory) {
+      if (file.isDirectory) {
         setLoading(false);
         return;
       }
       setLoading(true);
       try {
-        const f: File = await file.handle.getFile();
+        let f: File;
+        if (file.handle) {
+          f = await file.handle.getFile();
+        } else if (file.driveId) {
+          const blob = await getDriveFileBlob(file.driveId);
+          f = new File([blob], file.name, { type: file.mimeType || 'application/octet-stream' });
+        } else {
+          setLoading(false);
+          return;
+        }
         if (cancelled) return;
         setLocalFile(f);
         if (['image', 'video', 'audio'].includes(viewerType)) {
@@ -641,6 +692,29 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
       if (url) URL.revokeObjectURL(url);
     };
   }, [file.handle, file.isDirectory, viewerType]);
+
+  // Handle Save for text files
+  const handleSaveText = useCallback(async (newContent: string) => {
+    if (!localFile) return;
+    try {
+      if (file.handle) {
+        const writable = await file.handle.createWritable();
+        await writable.write(newContent);
+        await writable.close();
+      }
+      if (file.driveId) {
+        const newBlob = new Blob([newContent], { type: file.mimeType || 'text/plain' });
+        const newFileObj = new File([newBlob], file.name, { type: file.mimeType || 'text/plain' });
+        await updateDriveFile(file.driveId, newFileObj);
+      }
+      
+      const updatedBlob = new Blob([newContent], { type: file.mimeType || 'text/plain' });
+      setLocalFile(new File([updatedBlob], file.name, { type: file.mimeType || 'text/plain' }));
+    } catch (err) {
+      console.error('Failed to save file:', err);
+      throw err;
+    }
+  }, [file, localFile]);
 
   // Focus trap + ESC to close
   useEffect(() => {
@@ -763,7 +837,7 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
               {viewerType === 'video' && objectUrl && <VideoViewer url={objectUrl} mimeType={localFile.type} />}
               {viewerType === 'audio' && objectUrl && <AudioViewer url={objectUrl} name={file.name} mimeType={localFile.type} />}
               {viewerType === 'docx' && <DocxViewer file={localFile} />}
-              {viewerType === 'text' && <TextViewer file={localFile} />}
+              {viewerType === 'text' && <TextViewer file={localFile} onSave={handleSaveText} />}
             </>
           ) : (
             /* Fallback: File details card */

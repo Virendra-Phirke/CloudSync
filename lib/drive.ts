@@ -34,6 +34,36 @@ export async function fetchDriveFiles(): Promise<DriveFile[]> {
   }
 }
 
+export async function getDriveFileText(fileId: string): Promise<string> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+  
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch file contents');
+  }
+  
+  return response.text();
+}
+
+export async function getDriveFileBlob(fileId: string): Promise<Blob> {
+  const token = await getAccessToken();
+  if (!token) throw new Error('Not authenticated');
+  
+  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch file contents');
+  }
+  
+  return response.blob();
+}
+
 export async function fetchDriveFolders(): Promise<DriveFile[]> {
   const token = await getAccessToken();
   if (!token) return [];
