@@ -379,7 +379,7 @@ export const Dashboard = React.memo(function Dashboard() {
                  <p className="text-sm font-medium text-neutral-300">Not connected</p>
                  <p className="text-xs text-neutral-500 mt-1">Connect your Google account to see recent activity</p>
                </div>
-            ) : loadingRecent ? (
+            ) : loading ? (
             <div className="space-y-1">
               {[1, 2, 3, 4, 5].map(i => (
                 <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-transparent animate-pulse">
