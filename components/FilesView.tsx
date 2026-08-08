@@ -74,7 +74,7 @@ export const FilesView = React.memo(function FilesView() {
   const [isDragging, setIsDragging] = useState(false);
   const [syncProgressMsg, setSyncProgressMsg] = useState('');
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
-  const [shareFile, setShareFile] = useState<{ id: string; name: string; driveId?: string } | null>(null);
+  const [shareFiles, setShareFiles] = useState<FileItem[] | null>(null);
   const [currentConflicts, setCurrentConflicts] = useState<ConflictItem[]>([]);
   const [resolveConflictFn, setResolveConflictFn] = useState<((res: 'local' | 'drive' | 'skip') => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -635,6 +635,12 @@ export const FilesView = React.memo(function FilesView() {
               <span className="text-sm font-medium text-blue-400">{selectedIds.size} item(s) selected</span>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={() => setShareFiles(filteredFiles.filter(f => selectedIds.has(f.id)))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                >
+                  <Share2 size={14} /> Share Selected
+                </button>
+                <button
                   onClick={() => setFilesToDelete(filteredFiles.filter(f => selectedIds.has(f.id)))}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-400 bg-red-400/10 hover:bg-red-400/20 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                 >
@@ -790,7 +796,7 @@ export const FilesView = React.memo(function FilesView() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setShareFile({ id: file.id, name: file.name, driveId: file.driveId });
+                                  setShareFiles([file]);
                                 }}
                                 className="text-neutral-500 hover:text-blue-400 p-1 rounded-md hover:bg-blue-500/10 transition-colors opacity-0 group-hover:opacity-100"
                                 title="Share File"
@@ -888,7 +894,7 @@ export const FilesView = React.memo(function FilesView() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setShareFile({ id: file.id, name: file.name, driveId: file.driveId });
+                                    setShareFiles([file]);
                                   }}
                                   className="text-neutral-500 hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-all"
                                   title="Share File"
@@ -950,11 +956,11 @@ export const FilesView = React.memo(function FilesView() {
 
       {/* Share Modal */}
       <AnimatePresence>
-        {shareFile && (
+        {shareFiles && (
           <ShareModal
-            isOpen={!!shareFile}
-            onClose={() => setShareFile(null)}
-            file={shareFile}
+            isOpen={!!shareFiles}
+            onClose={() => setShareFiles(null)}
+            files={shareFiles}
           />
         )}
       </AnimatePresence>
