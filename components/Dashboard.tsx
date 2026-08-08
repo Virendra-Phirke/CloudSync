@@ -195,9 +195,30 @@ export const Dashboard = React.memo(function Dashboard() {
             </div>
 
             {loadingLocal ? (
-              <div className="flex items-center gap-2 text-neutral-400 py-8 justify-center">
-                <Loader2 size={18} className="animate-spin" />
-                <span className="text-sm">Loading folders...</span>
+              <div className="animate-pulse">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <div className="h-8 w-32 bg-neutral-800 rounded-lg"></div>
+                  <div className="h-4 w-40 bg-neutral-800/50 rounded"></div>
+                </div>
+                <div className="bg-neutral-800/30 rounded-xl p-4 grid grid-cols-3 gap-4 mt-4 mb-5">
+                  <div className="space-y-2">
+                    <div className="h-3 w-10 bg-neutral-800/50 rounded"></div>
+                    <div className="h-6 w-16 bg-neutral-800 rounded"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 w-12 bg-neutral-800/50 rounded"></div>
+                    <div className="h-6 w-16 bg-neutral-800 rounded"></div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 w-14 bg-neutral-800/50 rounded"></div>
+                    <div className="h-6 w-12 bg-neutral-800 rounded"></div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="shrink-0 bg-neutral-800/20 border border-neutral-800/50 rounded-xl px-3.5 py-2.5 w-[140px] h-[52px]"></div>
+                  ))}
+                </div>
               </div>
             ) : folderEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center text-center py-6">
@@ -240,7 +261,7 @@ export const Dashboard = React.memo(function Dashboard() {
                         <p className="text-xs font-medium text-neutral-300 truncate">{entry.folder.name}</p>
                       </div>
                       {entry.loading ? (
-                        <Loader2 size={12} className="animate-spin text-neutral-500" />
+                        <div className="h-3 w-20 bg-neutral-800 rounded animate-pulse" />
                       ) : entry.stats ? (
                         <p className="text-[11px] text-neutral-500">
                           {entry.stats.fileCount} files · {formatBytes(entry.stats.totalSize)}
@@ -268,9 +289,16 @@ export const Dashboard = React.memo(function Dashboard() {
               {!user ? (
                 <p className="text-sm text-neutral-500 py-6">Connect your Google account to see storage details</p>
               ) : loading ? (
-                <div className="flex items-center gap-2 text-neutral-400 py-6">
-                  <Loader2 size={16} className="animate-spin" />
-                  <span className="text-sm">Loading Drive stats...</span>
+                <div className="animate-pulse py-1">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <div className="h-8 w-24 bg-neutral-800 rounded-lg"></div>
+                    <div className="h-4 w-32 bg-neutral-800/50 rounded"></div>
+                  </div>
+                  <div className="w-full bg-neutral-800/50 rounded-full h-1.5 mt-4 mb-3"></div>
+                  <div className="flex justify-between mt-3">
+                    <div className="h-3 w-20 bg-neutral-800/50 rounded"></div>
+                    <div className="h-3 w-16 bg-neutral-800/50 rounded"></div>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -351,12 +379,22 @@ export const Dashboard = React.memo(function Dashboard() {
                  <p className="text-sm font-medium text-neutral-300">Not connected</p>
                  <p className="text-xs text-neutral-500 mt-1">Connect your Google account to see recent activity</p>
                </div>
-            ) : loading ? (
-               <div className="p-12 text-center">
-                 <Loader2 size={32} className="text-blue-500 animate-spin mx-auto mb-3" />
-                 <p className="text-sm font-medium text-neutral-300">Loading activity...</p>
-               </div>
-            ) : recentFiles.length > 0 ? (
+            ) : loadingRecent ? (
+            <div className="space-y-1">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-transparent animate-pulse">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-neutral-800 rounded-xl" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-40 bg-neutral-800 rounded" />
+                      <div className="h-3 w-24 bg-neutral-800/50 rounded" />
+                    </div>
+                  </div>
+                  <div className="h-3 w-16 bg-neutral-800/50 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : recentFiles.length > 0 ? (
               <div className="divide-y divide-neutral-800 stagger-children">
                 {recentFiles.map((item, i) => (
                   <div 

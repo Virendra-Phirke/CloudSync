@@ -201,9 +201,10 @@ export function SettingsView() {
                           Added {new Date(entry.folder.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </p>
                         {entry.loading ? (
-                          <div className="flex items-center gap-1.5 mt-2 text-neutral-500">
-                            <Loader2 size={11} className="animate-spin" />
-                            <span className="text-xs">Calculating...</span>
+                          <div className="flex items-center gap-3 mt-2 animate-pulse">
+                            <div className="h-3 w-12 bg-neutral-800 rounded"></div>
+                            <div className="h-3 w-12 bg-neutral-800 rounded"></div>
+                            <div className="h-3 w-16 bg-neutral-800 rounded"></div>
                           </div>
                         ) : entry.stats ? (
                           <div className="flex items-center gap-3 mt-2">

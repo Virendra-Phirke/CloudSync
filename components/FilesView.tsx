@@ -377,22 +377,22 @@ export const FilesView = React.memo(function FilesView() {
       <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 flex flex-col gap-4 sticky top-0 bg-neutral-950/95 z-10">
         {/* Top row */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
+          <div className="flex flex-col min-w-0 flex-1 mr-4">
             <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Files</h2>
             {activeFolder && (
-              <div className="flex items-center gap-1.5 mt-1.5 text-sm text-neutral-400">
+              <div className="flex items-center gap-1.5 mt-1 text-sm text-neutral-400 overflow-x-auto whitespace-nowrap hide-scrollbar pb-1">
                 <button 
                   onClick={() => handleNavigate(-1)}
-                  className={`hover:text-neutral-200 transition-colors ${currentPath === '' ? 'text-neutral-200 font-medium' : ''}`}
+                  className={`hover:text-neutral-200 transition-colors shrink-0 ${currentPath === '' ? 'text-neutral-200 font-medium' : ''}`}
                 >
                   {activeFolder.name}
                 </button>
                 {breadcrumbs.map((crumb, idx) => (
                   <React.Fragment key={idx}>
-                    <ChevronRight size={12} className="text-neutral-600" />
+                    <ChevronRight size={12} className="text-neutral-600 shrink-0" />
                     <button 
                       onClick={() => handleNavigate(idx)}
-                      className={`hover:text-neutral-200 transition-colors ${idx === breadcrumbs.length - 1 ? 'text-neutral-200 font-medium' : ''}`}
+                      className={`hover:text-neutral-200 transition-colors truncate ${idx === breadcrumbs.length - 1 ? 'text-neutral-200 font-medium' : ''}`}
                     >
                       {crumb}
                     </button>
@@ -401,9 +401,9 @@ export const FilesView = React.memo(function FilesView() {
               </div>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
             {/* Search */}
-            <div className="relative flex-1 min-w-[200px] md:flex-none">
+            <div className="relative flex-1 md:flex-none">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={15} />
               <input
                 type="text"
@@ -414,45 +414,52 @@ export const FilesView = React.memo(function FilesView() {
               />
             </div>
             
-            {/* View toggle */}
-            <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-xl p-0.5">
+            {/* Action Buttons Group */}
+            <div className="flex items-center gap-2 justify-end shrink-0">
+              {/* View toggle */}
+              <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-xl p-0.5">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-lg transition-all duration-200 ${
+                    viewMode === 'grid' ? 'bg-neutral-800 text-neutral-100 shadow-sm' : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                  aria-label="Grid view"
+                >
+                  <LayoutGrid size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-lg transition-all duration-200 ${
+                    viewMode === 'list' ? 'bg-neutral-800 text-neutral-100 shadow-sm' : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                  aria-label="List view"
+                >
+                  <List size={16} />
+                </button>
+              </div>
+              
+              {/* Refresh */}
               <button
-                onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-lg transition-all duration-200 ${
-                  viewMode === 'grid' ? 'bg-neutral-800 text-neutral-100 shadow-sm' : 'text-neutral-500 hover:text-neutral-300'
-                }`}
+                onClick={loadFiles}
+                disabled={noFolders || loading || syncing}
+                title="Refresh files"
+                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-200 text-sm font-medium rounded-xl transition-colors"
               >
-                <LayoutGrid size={16} />
+                {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                <span className="hidden sm:inline">Refresh</span>
               </button>
+              
+              {/* Sync */}
               <button
-                onClick={() => setViewMode('list')}
-                className={`p-1.5 rounded-lg transition-all duration-200 ${
-                  viewMode === 'list' ? 'bg-neutral-800 text-neutral-100 shadow-sm' : 'text-neutral-500 hover:text-neutral-300'
-                }`}
+                onClick={handleForceSync}
+                disabled={noFolders || loading || syncing || noAccount}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm shadow-blue-500/20 hover:shadow-blue-500/30"
               >
-                <List size={16} />
+                {syncing ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
+                <span className="hidden sm:inline">{syncing ? 'Syncing...' : 'Sync to Drive'}</span>
+                <span className="sm:hidden">{syncing ? 'Syncing...' : 'Sync'}</span>
               </button>
             </div>
-            
-            {/* Refresh */}
-            <button
-              onClick={loadFiles}
-              disabled={noFolders || loading || syncing}
-              className="flex items-center gap-2 px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-200 text-sm font-medium rounded-xl transition-colors"
-            >
-              {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
-              Refresh
-            </button>
-            
-            {/* Sync */}
-            <button
-              onClick={handleForceSync}
-              disabled={noFolders || loading || syncing || noAccount}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm shadow-blue-500/20 hover:shadow-blue-500/30"
-            >
-              {syncing ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
-              {syncing ? 'Syncing...' : 'Sync to Drive'}
-            </button>
           </div>
         </div>
 
@@ -585,9 +592,34 @@ export const FilesView = React.memo(function FilesView() {
 
             {/* Loading state */}
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 gap-3 text-neutral-500">
-                <Loader2 size={32} className="animate-spin text-blue-400" />
-                <p className="text-sm font-medium text-neutral-300">Reading folder...</p>
+              <div className="w-full">
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-pulse">
+                    {Array.from({ length: 12 }).map((_, i) => (
+                      <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 h-36">
+                        <div className="w-12 h-12 bg-neutral-800 rounded-xl mb-4" />
+                        <div className="w-3/4 h-4 bg-neutral-800 rounded mb-2" />
+                        <div className="w-1/2 h-3 bg-neutral-800 rounded" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden animate-pulse">
+                    <div className="flex flex-col">
+                      {Array.from({ length: 8 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-4 px-5 py-3 border-b border-neutral-800/50">
+                          <div className="w-8 h-8 bg-neutral-800 rounded-lg shrink-0" />
+                          <div className="flex-1 space-y-2">
+                            <div className="w-1/3 h-4 bg-neutral-800 rounded" />
+                            <div className="w-1/4 h-3 bg-neutral-800 rounded hidden md:block" />
+                          </div>
+                          <div className="w-24 h-4 bg-neutral-800 rounded hidden sm:block" />
+                          <div className="w-24 h-4 bg-neutral-800 rounded hidden md:block" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : filteredFiles.length > 0 ? (
               /* ── Grid View ── */
