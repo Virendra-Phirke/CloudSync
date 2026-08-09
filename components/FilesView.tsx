@@ -97,7 +97,7 @@ const VirtualizedListBody = React.memo(({
   });
 
   return (
-    <div ref={parentRef} className="max-h-[60vh] overflow-auto hide-scrollbar" style={{ contain: 'strict' }}>
+    <div ref={parentRef} className="max-h-[60vh] overflow-auto hide-scrollbar">
       <div
         style={{
           height: `${rowVirtualizer.getTotalSize()}px`,
@@ -123,14 +123,15 @@ const VirtualizedListBody = React.memo(({
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              <div className="px-5 py-3.5 w-14 shrink-0" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(file.id)}
-                  onChange={() => {}}
+              <div className="px-5 py-3.5 w-14 shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+                <div
                   onClick={(e) => handleSelectFile(e, file.id)}
-                  className="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900 cursor-pointer"
-                />
+                  className={`w-4 h-4 rounded flex items-center justify-center transition-colors border cursor-pointer ${
+                    selectedIds.has(file.id) ? 'bg-blue-500 border-blue-500 text-white' : 'bg-neutral-800 border-neutral-600 text-transparent hover:border-neutral-400'
+                  }`}
+                >
+                  <Check size={12} strokeWidth={3} className={`transition-opacity duration-200 ${selectedIds.has(file.id) ? 'opacity-100' : 'opacity-0'}`} />
+                </div>
               </div>
               <div className="px-5 py-3.5 flex-1 min-w-0">
                 <div className="flex items-center gap-3">
@@ -541,9 +542,10 @@ export const FilesView = React.memo(function FilesView() {
     return files;
   }, [files, searchQuery]);
 
-  const handleSelectAll = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedIds(e.target.checked ? new Set(filteredFiles.map((f) => f.id)) : new Set());
-  }, [filteredFiles]);
+  const handleSelectAll = useCallback(() => {
+    const allSelected = filteredFiles.length > 0 && selectedIds.size === filteredFiles.length;
+    setSelectedIds(allSelected ? new Set() : new Set(filteredFiles.map((f) => f.id)));
+  }, [filteredFiles, selectedIds]);
 
   const handleSelectFile = useCallback((e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -555,13 +557,22 @@ export const FilesView = React.memo(function FilesView() {
   }, []);
 
   const handleRowClick = useCallback((file: FileItem) => {
+    if (selectedIds.size > 0) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.has(file.id) ? next.delete(file.id) : next.add(file.id);
+        return next;
+      });
+      return;
+    }
+
     if (file.isDirectory) {
       setCurrentPath(file.path);
       setSearchQuery('');
     } else {
       setPreviewFile(file);
     }
-  }, []);
+  }, [selectedIds.size]);
 
   const closePreview = useCallback(() => setPreviewFile(null), []);
 
@@ -991,15 +1002,14 @@ export const FilesView = React.memo(function FilesView() {
                 </span>
               </div>
               {viewMode === 'list' && filteredFiles.length > 0 && (
-                <label className="flex items-center gap-2 text-xs text-neutral-500 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={filteredFiles.length > 0 && selectedIds.size === filteredFiles.length}
-                    onChange={handleSelectAll}
-                    className="w-3.5 h-3.5 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900 cursor-pointer"
-                  />
+                <div className="flex items-center gap-2 text-xs text-neutral-500 cursor-pointer" onClick={handleSelectAll}>
+                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center transition-colors border ${
+                    filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'bg-blue-500 border-blue-500 text-white' : 'bg-neutral-800 border-neutral-600 text-transparent hover:border-neutral-400'
+                  }`}>
+                    <Check size={10} strokeWidth={3} className={`transition-opacity duration-200 ${filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'opacity-100' : 'opacity-0'}`} />
+                  </div>
                   Select all
-                </label>
+                </div>
               )}
             </div>
 
@@ -1137,13 +1147,15 @@ export const FilesView = React.memo(function FilesView() {
                 >
                   {/* Header row */}
                   <div className="flex items-center border-b border-neutral-800 bg-neutral-900/50 min-w-[600px]">
-                    <div className="px-5 py-3.5 w-14 shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={filteredFiles.length > 0 && selectedIds.size === filteredFiles.length}
-                        onChange={handleSelectAll}
-                        className="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900"
-                      />
+                    <div className="px-5 py-3.5 w-14 shrink-0 flex items-center">
+                      <div
+                        onClick={handleSelectAll}
+                        className={`w-4 h-4 rounded flex items-center justify-center transition-colors border cursor-pointer ${
+                          filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'bg-blue-500 border-blue-500 text-white' : 'bg-neutral-800 border-neutral-600 text-transparent hover:border-neutral-400'
+                        }`}
+                      >
+                        <Check size={12} strokeWidth={3} className={`transition-opacity duration-200 ${filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'opacity-100' : 'opacity-0'}`} />
+                      </div>
                     </div>
                     <div className="px-5 py-3.5 flex-1 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Name</div>
                     <div className="px-5 py-3.5 w-28 shrink-0 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Status</div>
