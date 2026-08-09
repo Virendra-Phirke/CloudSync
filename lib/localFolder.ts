@@ -905,7 +905,7 @@ export async function readFolderChildren(
   const results: LocalFile[] = [];
 
   // Load ignore rules at root level
-  const ig = ignore().add(['.syncignore', '.git', 'node_modules', '.DS_Store']);
+  const ig = ignore().add(['.syncignore']);
   try {
     const targetIgnoreHandle = rootHandle || handle;
     const ignoreHandle = await targetIgnoreHandle.getFileHandle('.syncignore');
@@ -976,7 +976,7 @@ export async function readFolderFiles(
   // At root, check for .syncignore
   let currentIg = ig;
   if (depth === 0) {
-    currentIg = ignore().add(['.syncignore', '.git', 'node_modules', '.DS_Store']); // default ignores
+    currentIg = ignore().add(['.syncignore']); // default ignores
     try {
       const ignoreHandle = await handle.getFileHandle('.syncignore');
       const ignoreFile = await ignoreHandle.getFile();
@@ -1059,7 +1059,7 @@ export async function getFolderStats(
 
   let currentIg = ig;
   if (depth === 0) {
-    currentIg = ignore().add(['.syncignore', '.git', 'node_modules', '.DS_Store']);
+    currentIg = ignore().add(['.syncignore']);
     try {
       const ignoreHandle = await handle.getFileHandle('.syncignore');
       const ignoreFile = await ignoreHandle.getFile();

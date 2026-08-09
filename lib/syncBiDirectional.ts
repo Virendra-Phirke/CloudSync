@@ -86,7 +86,7 @@ export async function syncBiDirectional(
   }
   
   // Setup ignore rules
-  const ig = ignore().add(['.syncignore', '.git', 'node_modules', '.DS_Store']);
+  const ig = ignore().add(['.syncignore']);
   try {
     const ignoreHandle = await localRootHandle.getFileHandle('.syncignore');
     const ignoreFile = await ignoreHandle.getFile();
