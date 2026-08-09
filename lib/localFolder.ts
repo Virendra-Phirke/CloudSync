@@ -789,8 +789,8 @@ certs/
 .local-notes/
 `;
 
-/** Prompts user to pick a directory and adds it to the folder list. */
-export async function addLocalFolder(): Promise<SyncFolderEntry | null> {
+/** Prompts user to pick a directory and initializes .syncignore without saving to DB. */
+export async function pickAndInitFolder(): Promise<FileSystemDirectoryHandle | null> {
   if (!('showDirectoryPicker' in window)) {
     throw new Error(
       'Your browser does not support the File System Access API. Please use Chrome or Edge.'
@@ -813,28 +813,42 @@ export async function addLocalFolder(): Promise<SyncFolderEntry | null> {
         console.warn('Could not create default .syncignore:', err);
       }
     }
-
-    const id = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const entry: SyncFolderEntry = {
-      id,
-      handle,
-      info: { id, name: handle.name, savedAt: Date.now() },
-    };
-    
-    const existing = await getLocalFolders();
-    // Check if folder already exists (by name — handles can't be compared)
-    const alreadyExists = existing.some(f => f.info.name === handle.name);
-    if (alreadyExists) {
-      throw new Error(`Folder "${handle.name}" is already added.`);
-    }
-    
-    existing.push(entry);
-    await set(FOLDERS_KEY, existing);
-    return entry;
+    return handle;
   } catch (err: any) {
-    if (err.name === 'AbortError') return null; // user cancelled
-    throw err;
+    if (err.name !== 'AbortError') {
+      console.error('Error picking local folder:', err);
+      throw err;
+    }
+    return null;
   }
+}
+
+/** Saves a directory handle to the application's local folder list. */
+export async function commitLocalFolder(handle: FileSystemDirectoryHandle): Promise<SyncFolderEntry> {
+  const id = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const entry: SyncFolderEntry = {
+    id,
+    handle,
+    info: { id, name: handle.name, savedAt: Date.now() },
+  };
+  
+  const existing = await getLocalFolders();
+  const alreadyExists = existing.some(f => f.info.name === handle.name);
+  if (alreadyExists) {
+    throw new Error(`Folder "${handle.name}" is already added.`);
+  }
+  
+  const updated = [...existing, entry];
+  await set(FOLDERS_KEY, updated);
+  
+  return entry;
+}
+
+/** Prompts user to pick a directory and adds it to the folder list directly. */
+export async function addLocalFolder(): Promise<SyncFolderEntry | null> {
+  const handle = await pickAndInitFolder();
+  if (!handle) return null;
+  return await commitLocalFolder(handle);
 }
 
 /** Remove a folder from the list by ID. */
@@ -917,8 +931,11 @@ export async function readFolderChildren(
 
   for await (const [name, entry] of (handle as any).entries()) {
     const path = prefix ? `${prefix}/${name}` : name;
+    
+    // Append a slash if it's a directory so ignore rules targeting directories (like node_modules/) match correctly
+    const checkPath = entry.kind === 'directory' ? `${path}/` : path;
 
-    if (ig.ignores(path)) continue;
+    if (ig.ignores(checkPath)) continue;
 
     if (entry.kind === 'file') {
       try {
@@ -990,7 +1007,8 @@ export async function readFolderFiles(
   for await (const [name, entry] of (handle as any).entries()) {
     const path = prefix ? `${prefix}/${name}` : name;
     
-    if (currentIg && currentIg.ignores(path)) {
+    const checkPath = entry.kind === 'directory' ? `${path}/` : path;
+    if (currentIg && currentIg.ignores(checkPath)) {
       continue; // Skip ignored files/folders
     }
 
@@ -1071,7 +1089,8 @@ export async function getFolderStats(
   for await (const [name, entry] of (handle as any).entries()) {
     const path = prefix ? `${prefix}/${name}` : name;
     
-    if (currentIg && currentIg.ignores(path)) {
+    const checkPath = entry.kind === 'directory' ? `${path}/` : path;
+    if (currentIg && currentIg.ignores(checkPath)) {
       continue;
     }
 

@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { fetchDriveFiles, DriveFile, uploadFileToDrive, deleteDriveFile } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import {
-  getLocalFolders, getLocalFolderById, addLocalFolder, readFolderChildren,
+  getLocalFolders, getLocalFolderById, pickAndInitFolder, commitLocalFolder, readFolderChildren,
   LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder,
 } from '../lib/localFolder';
 import { syncBiDirectional, ConflictItem } from '../lib/syncBiDirectional';
@@ -210,6 +210,7 @@ export const FilesView = React.memo(function FilesView() {
   const [addingFiles, setAddingFiles] = useState(false);
   const [showSyncIgnoreModal, setShowSyncIgnoreModal] = useState(false);
   const [activeFolderHandle, setActiveFolderHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const [pendingFolderHandle, setPendingFolderHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const handleForceSyncRef = useRef<(() => void) | null>(null);
 
   const { showToast } = useToast();
@@ -353,16 +354,13 @@ export const FilesView = React.memo(function FilesView() {
     setShowPermissionModal(false);
     setAddingFolder(true);
     try {
-      const entry = await addLocalFolder();
-      if (entry) {
-        const infos = await getLocalFolderInfos();
-        setFolders(infos);
-        setActiveFolderId(entry.id);
-        showToast(`Added folder "${entry.info.name}"`, 'success');
+      const handle = await pickAndInitFolder();
+      if (handle) {
+        setPendingFolderHandle(handle);
       }
     } catch (err: any) {
       if (err.name !== 'AbortError') {
-        showToast(err.message || 'Failed to add folder', 'error');
+        showToast(err.message || 'Failed to pick folder', 'error');
       }
     } finally {
       setAddingFolder(false);
@@ -370,6 +368,9 @@ export const FilesView = React.memo(function FilesView() {
   }, [showToast]);
 
   const handleAddFolder = useCallback(() => {
+    // Directly start picking a folder, we don't need to ask permission 
+    // unless this is a specific design. Wait, the old code showed the permission modal.
+    // I'll keep the permission modal flow to be safe.
     setShowPermissionModal(true);
   }, []);
 
@@ -1307,16 +1308,33 @@ export const FilesView = React.memo(function FilesView() {
 
       {/* SyncIgnore Editor Modal */}
       <AnimatePresence>
-        {showSyncIgnoreModal && (
+        {(showSyncIgnoreModal || pendingFolderHandle) && (
           <SyncIgnoreModal
-            isOpen={showSyncIgnoreModal}
-            onClose={() => setShowSyncIgnoreModal(false)}
-            folderHandle={activeFolderHandle}
-            folderName={activeFolder?.name || ''}
-            onSaved={() => {
-              showToast('.syncignore updated — refreshing files', 'success');
-              loadFiles();
+            isOpen={!!(showSyncIgnoreModal || pendingFolderHandle)}
+            onClose={() => {
+              setShowSyncIgnoreModal(false);
+              setPendingFolderHandle(null);
             }}
+            folderHandle={pendingFolderHandle || activeFolderHandle}
+            folderName={pendingFolderHandle?.name || activeFolder?.name || ''}
+            onSaved={async () => {
+              if (pendingFolderHandle) {
+                 try {
+                   const entry = await commitLocalFolder(pendingFolderHandle);
+                   const infos = await getLocalFolderInfos();
+                   setFolders(infos);
+                   setActiveFolderId(entry.id);
+                   showToast(`Added folder "${entry.info.name}"`, 'success');
+                 } catch (err: any) {
+                   showToast(err.message || 'Failed to add folder', 'error');
+                 }
+                 setPendingFolderHandle(null);
+              } else {
+                showToast('.syncignore updated — refreshing files', 'success');
+                loadFiles();
+              }
+            }}
+            isNewFolder={!!pendingFolderHandle}
           />
         )}
       </AnimatePresence>

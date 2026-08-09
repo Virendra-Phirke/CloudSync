@@ -38,6 +38,7 @@ function getDefaults(): Domain[] {
     mk('java', 'Java / Gradle', 'orange', false, ['*.class', '*.jar', '*.war', '*.ear', 'target/', 'out/', '.gradle/', 'hs_err_pid*']),
     mk('android', 'Android', 'emerald', false, ['.idea/', '*.iml', 'local.properties', '.cxx/', 'captures/', '*/build/', '*.jks', '*.keystore', 'google-services.json']),
     mk('docker', 'Docker / DevOps', 'cyan', false, ['docker-compose.override.yml', '.env', '.terraform/', '*.tfstate', '*.tfstate.*', '.serverless/', '.aws-sam/']),
+    mk('github', 'Git / GitHub', 'slate', true, ['.git/', '.github/']),
     mk('ide', 'IDE / Editors', 'violet', true, ['.idea/', '*.iml', '.vscode/*', '!.vscode/settings.json', '.vim/', '.emacs.d/']),
     mk('os', 'Operating System', 'slate', true, ['.DS_Store', 'Thumbs.db', 'desktop.ini', '*.lnk', '*~', '.Trash-*']),
     mk('secrets', 'Secrets / Credentials', 'red', true, ['.env', '.env.*', '!.env.example', 'secrets/', '*.pem', '*.key', 'credentials.json']),
@@ -74,10 +75,9 @@ function parseSyncIgnore(text: string): Domain[] {
         currentDomain = mk(`custom${customCount++}`, domainName, PALETTE[parsedDomains.length % PALETTE.length], true, []);
       }
     } else {
-      if (!currentDomain) {
-        currentDomain = mk(`custom${customCount++}`, 'Custom / Uncategorized', 'slate', true, []);
+      if (currentDomain) {
+        currentDomain.patterns.push(trimmed);
       }
-      currentDomain.patterns.push(trimmed);
     }
   }
   
@@ -104,9 +104,10 @@ interface SyncIgnoreModalProps {
   folderHandle: FileSystemDirectoryHandle | null;
   folderName: string;
   onSaved?: () => void;
+  isNewFolder?: boolean;
 }
 
-export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onSaved }: SyncIgnoreModalProps) {
+export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onSaved, isNewFolder }: SyncIgnoreModalProps) {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -371,7 +372,7 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
                 disabled={saving}
                 className="px-4 py-1.5 bg-sky-500 hover:bg-sky-400 text-white rounded font-medium transition-colors disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? 'Saving...' : isNewFolder ? 'Save & Continue Import' : 'Save Changes'}
               </button>
             </div>
           </main>
