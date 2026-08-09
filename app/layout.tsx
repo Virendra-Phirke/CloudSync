@@ -3,6 +3,7 @@ import './globals.css';
 import { ToastProvider } from '../components/ToastContext';
 import { ThemeProvider } from '../components/ThemeContext';
 import { AutoSyncManager } from '../components/AutoSyncManager';
+import { SyncProvider } from '../components/SyncContext';
 
 export const metadata: Metadata = {
   title: 'CloudSync',
@@ -18,8 +19,10 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       <body suppressHydrationWarning>
         <ThemeProvider>
           <ToastProvider>
-            <AutoSyncManager />
-            {children}
+            <SyncProvider>
+              <AutoSyncManager />
+              {children}
+            </SyncProvider>
           </ToastProvider>
         </ThemeProvider>
       </body>

@@ -22,7 +22,6 @@ import { AnimatePresence, motion } from 'motion/react';
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -52,7 +51,6 @@ export default function Page() {
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
-        syncStatus={syncStatus} 
         onOpenTheme={() => setIsThemeOpen(true)}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}

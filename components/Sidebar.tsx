@@ -14,16 +14,18 @@ interface SidebarProps {
   setIsMobileOpen: (o: boolean) => void;
 }
 
+import { useSync } from './SyncContext';
+
 export function Sidebar({ 
   activeTab, 
   setActiveTab, 
-  syncStatus, 
   onOpenTheme,
   isCollapsed,
   setIsCollapsed,
   isMobileOpen,
   setIsMobileOpen
-}: SidebarProps) {
+}: Omit<SidebarProps, 'syncStatus'>) {
+  const { isSyncing, syncProgressMsg, cancelSync } = useSync();
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'files', label: 'Files', icon: FolderSync },
@@ -142,20 +144,25 @@ export function Sidebar({
         </motion.button>
         
         <div className={clsx("flex items-center", isCollapsed ? "max-md:px-2 max-md:gap-3 md:justify-center md:px-0" : "gap-3 px-2")}>
-          <div className="relative shrink-0" title={syncStatus}>
+          <div className="relative shrink-0">
             <div className={clsx(
               "w-2.5 h-2.5 rounded-full",
-              syncStatus === 'syncing' ? "bg-amber-400 animate-pulse" :
-              syncStatus === 'error' ? "bg-red-400" : "bg-emerald-400"
+              isSyncing ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
             )} />
           </div>
-          <div className={clsx("flex flex-col whitespace-nowrap overflow-hidden", isCollapsed ? "md:hidden" : "")}>
+          <div className={clsx("flex flex-col whitespace-nowrap overflow-hidden flex-1", isCollapsed ? "md:hidden" : "")}>
             <span className="text-xs font-semibold text-sidebar-foreground">
-              {syncStatus === 'syncing' ? 'Syncing...' :
-                syncStatus === 'error' ? 'Sync Error' : 'Ready'}
+              {isSyncing ? 'Syncing...' : 'Ready'}
             </span>
-            <span className="text-[10px] text-sidebar-foreground/50">Waiting for files</span>
+            <span className="text-[10px] text-sidebar-foreground/50 truncate pr-2" title={syncProgressMsg}>
+              {isSyncing ? syncProgressMsg || 'Working...' : 'Waiting for files'}
+            </span>
           </div>
+          {isSyncing && !isCollapsed && (
+            <button onClick={cancelSync} className="p-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 md:block hidden" title="Cancel Sync">
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         {/* Desktop Collapse Toggle */}

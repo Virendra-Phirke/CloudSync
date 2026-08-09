@@ -21,7 +21,8 @@ const BATCH_SAVE_INTERVAL = 50; // Save state every N processed files
 async function runPool<T>(
   tasks: (() => Promise<T>)[],
   concurrency: number,
-  onProgress?: (completed: number, total: number) => void
+  onProgress?: (completed: number, total: number) => void,
+  abortSignal?: AbortSignal
 ): Promise<void> {
   let idx = 0;
   let completed = 0;
@@ -30,6 +31,7 @@ async function runPool<T>(
 
   async function runNext(): Promise<void> {
     while (idx < total) {
+      if (abortSignal?.aborted) return;
       const currentIdx = idx++;
       try {
         await tasks[currentIdx]();
@@ -55,8 +57,11 @@ async function runPool<T>(
 export async function syncBiDirectional(
   localRootHandle: FileSystemDirectoryHandle,
   onProgress?: (msg: string) => void,
-  onConflict?: (conflicts: ConflictItem[]) => Promise<'local' | 'drive' | 'skip'>
+  onConflict?: (conflicts: ConflictItem[]) => Promise<'local' | 'drive' | 'skip'>,
+  abortSignal?: AbortSignal
 ) {
+  abortSignal?.throwIfAborted();
+  
   onProgress?.('Loading local sync state...');
   const syncState: SyncStateMap = await getSyncState();
 
@@ -100,6 +105,8 @@ export async function syncBiDirectional(
     driveDirId: string,
     currentPath: string
   ) {
+    abortSignal?.throwIfAborted();
+    
     onProgress?.(`Scanning folder: ${currentPath || 'Root'}`);
 
     // 1. Get local files & folders in this directory ONLY (depth 0)
@@ -136,6 +143,7 @@ export async function syncBiDirectional(
         const cachedState = syncState[localInfo.fullPath];
 
         fileTasks.push(async () => {
+          abortSignal?.throwIfAborted();
           totalFilesProcessed++;
           const fileHandle = localInfo.handle;
           const file = await fileHandle.getFile();
@@ -238,7 +246,7 @@ export async function syncBiDirectional(
         if (done % 10 === 0 || done === total) {
           onProgress?.(`[${currentPath || 'Root'}] ${done}/${total} files processed`);
         }
-      });
+      }, abortSignal);
     }
 
     // 6. Recurse into subdirectories (sequential to avoid overwhelming the API)

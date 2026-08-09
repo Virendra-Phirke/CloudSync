@@ -14,6 +14,7 @@ import {
   LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder,
 } from '../lib/localFolder';
 import { syncBiDirectional, ConflictItem } from '../lib/syncBiDirectional';
+import { useSync } from './SyncContext';
 import { useToast } from './ToastContext';
 import { getFileTypeInfo } from '../lib/fileUtils';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -185,18 +186,16 @@ export const FilesView = React.memo(function FilesView() {
   const [currentPath, setCurrentPath] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const [user, setUser] = useState<OAuthUser | null>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [syncProgressMsg, setSyncProgressMsg] = useState('');
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [shareFiles, setShareFiles] = useState<FileItem[] | null>(null);
-  const [currentConflicts, setCurrentConflicts] = useState<ConflictItem[]>([]);
-  const [resolveConflictFn, setResolveConflictFn] = useState<((res: 'local' | 'drive' | 'skip') => void) | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [isFolderDropdownOpen, setIsFolderDropdownOpen] = useState(false);
   const userRef = useRef<OAuthUser | null>(null);
   userRef.current = user;
+
+  const { isSyncing: syncing, syncProgressMsg, currentConflicts, resolveConflictFn, startSync, cancelSync } = useSync();
 
   // Multi-folder state
   const [folders, setFolders] = useState<SyncFolder[]>([]);
@@ -318,6 +317,15 @@ export const FilesView = React.memo(function FilesView() {
     }
   }, [activeFolderId, loadFiles]);
 
+  // Reload files after global sync completes
+  useEffect(() => {
+    const handleSyncComplete = () => {
+      loadFiles();
+    };
+    window.addEventListener('omnisync-sync-completed', handleSyncComplete);
+    return () => window.removeEventListener('omnisync-sync-completed', handleSyncComplete);
+  }, [loadFiles]);
+
   // Auth state
   useEffect(() => {
     const unsub = initAuth(
@@ -369,35 +377,8 @@ export const FilesView = React.memo(function FilesView() {
     if (!userRef.current) { showToast('Connect your Google account first.', 'error'); return; }
     if (!activeFolderId) { showToast('Select a folder first.', 'error'); return; }
     
-    setSyncing(true);
-    setSyncProgressMsg('Starting sync...');
-    try {
-      const entry = await getLocalFolderById(activeFolderId);
-      if (!entry) throw new Error('Folder not found or permission denied');
-      
-      await syncBiDirectional(entry.handle, (msg) => {
-        setSyncProgressMsg(msg);
-      }, (conflicts) => {
-        return new Promise<'local' | 'drive' | 'skip'>((resolve) => {
-          setCurrentConflicts(conflicts);
-          setResolveConflictFn(() => (res: 'local' | 'drive' | 'skip') => {
-            setCurrentConflicts([]);
-            setResolveConflictFn(null);
-            resolve(res);
-          });
-        });
-      });
-      
-      showToast('Sync completed successfully!', 'success');
-      loadFiles();
-    } catch (err: any) {
-      console.error(err);
-      showToast(`Sync failed: ${err.message}`, 'error');
-    } finally {
-      setSyncing(false);
-      setSyncProgressMsg('');
-    }
-  }, [activeFolderId, loadFiles, showToast]);
+    await startSync(activeFolderId);
+  }, [activeFolderId, startSync, showToast]);
   handleForceSyncRef.current = handleForceSync;
 
   const handleAddFiles = useCallback(async () => {
