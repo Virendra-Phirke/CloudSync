@@ -452,6 +452,42 @@ export const FilesView = React.memo(function FilesView() {
     setIsDragging(true);
   }, [activeFolderId]);
 
+  // Prevent tab refresh/close while syncing
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (syncing) {
+        e.preventDefault();
+        e.returnValue = ''; // Required to show the browser warning dialog
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [syncing]);
+
+  // Keep screen awake while syncing to reduce background throttling
+  useEffect(() => {
+    let wakeLock: WakeLockSentinel | null = null;
+    const requestWakeLock = async () => {
+      try {
+        if ('wakeLock' in navigator && syncing) {
+          wakeLock = await navigator.wakeLock.request('screen');
+        }
+      } catch (err) {
+        console.warn('Wake Lock error:', err);
+      }
+    };
+
+    if (syncing) {
+      requestWakeLock();
+    } else if (wakeLock) {
+      wakeLock.release().then(() => { wakeLock = null; });
+    }
+    
+    return () => {
+      if (wakeLock) wakeLock.release().catch(() => {});
+    };
+  }, [syncing]);
+
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
