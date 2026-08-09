@@ -306,7 +306,7 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
                       return (
                         <div key={c.id} id={`domain-${c.id}`} className="mb-4">
                           {/* Domain Header */}
-                          <div className="group flex items-center gap-3 px-6 pt-3 pb-2 hover:bg-white/[.02]">
+                          <div className={`group flex items-center gap-3 px-6 pt-3 pb-2 transition-colors ${searchQuery && c.name.toLowerCase().includes(searchQuery.toLowerCase()) ? 'bg-sky-500/20' : 'hover:bg-white/[.02]'}`}>
                             <span className="w-8 shrink-0 text-right text-zinc-700 select-none text-[11px] tabular-nums">{globalLineNumber}</span>
                             <span className={`${C.soft} select-none`}>#</span>
                             <input 
@@ -327,8 +327,9 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
                           {/* Patterns */}
                           {c.patterns.map((p, idx) => {
                             globalLineNumber++;
+                            const isMatch = searchQuery && p.toLowerCase().includes(searchQuery.toLowerCase());
                             return (
-                              <div key={idx} id={`pattern-${c.id}-${idx}`} className="group flex items-center gap-3 px-6 hover:bg-white/[.04] leading-relaxed py-0.5">
+                              <div key={idx} id={`pattern-${c.id}-${idx}`} className={`group flex items-center gap-3 px-6 leading-relaxed py-0.5 transition-colors ${isMatch ? 'bg-sky-500/20' : 'hover:bg-white/[.04]'}`}>
                                 <span className="w-8 shrink-0 text-right text-zinc-700 select-none text-[11px] tabular-nums">{globalLineNumber}</span>
                                 <input 
                                   value={p}
