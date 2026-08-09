@@ -3,25 +3,27 @@ import {
   Search, Folder, MoreVertical, UploadCloud, 
   X, Download, CheckCircle, Check, HardDrive,
   RefreshCw, FolderOpen, CloudOff, Loader2,
-  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown
+  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown, AlertTriangle, FilePlus, EyeOff
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { fetchDriveFiles, DriveFile, uploadFileToDrive, deleteDriveFile } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import {
-  getLocalFolders, getLocalFolderById, addLocalFolder, readFolderFiles,
+  getLocalFolders, getLocalFolderById, addLocalFolder, readFolderChildren,
   LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder,
 } from '../lib/localFolder';
 import { syncBiDirectional, ConflictItem } from '../lib/syncBiDirectional';
 import { useToast } from './ToastContext';
 import { getFileTypeInfo } from '../lib/fileUtils';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import dynamic from 'next/dynamic';
 
 const FilePreviewModal = dynamic(() => import('./FilePreviewModal').then(mod => mod.FilePreviewModal), { ssr: false });
 const ConfirmDialog = dynamic(() => import('./ConfirmDialog').then(mod => mod.ConfirmDialog), { ssr: false });
 const ShareModal = dynamic(() => import('./ShareModal').then(mod => mod.ShareModal), { ssr: false });
 const ConflictResolverModal = dynamic(() => import('./ConflictResolverModal').then(mod => mod.ConflictResolverModal), { ssr: false });
+const SyncIgnoreModal = dynamic(() => import('./SyncIgnoreModal').then(mod => mod.SyncIgnoreModal), { ssr: false });
 
 import { removeSyncState } from '../lib/syncState';
 
@@ -67,6 +69,116 @@ function formatDate(ts: number) {
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
+const VirtualizedListBody = React.memo(({
+  files,
+  selectedIds,
+  searchQuery,
+  statusBadge,
+  handleRowClick,
+  handleSelectFile,
+  setShareFiles
+}: {
+  files: FileItem[],
+  selectedIds: Set<string>,
+  searchQuery: string,
+  statusBadge: Record<SyncStatus, { cls: string; icon: React.ReactNode; label: string }>,
+  handleRowClick: (file: FileItem) => void,
+  handleSelectFile: (e: React.MouseEvent, id: string) => void,
+  setShareFiles: (files: FileItem[]) => void
+}) => {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: files.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 52,
+    overscan: 10,
+  });
+
+  return (
+    <div ref={parentRef} className="max-h-[60vh] overflow-auto hide-scrollbar" style={{ contain: 'strict' }}>
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const file = files[virtualRow.index];
+          const typeInfo = getFileTypeInfo(file.name, file.mimeType, file.isDirectory);
+          const TypeIcon = typeInfo.icon;
+          const badge = statusBadge[file.status];
+          
+          return (
+            <div
+              key={virtualRow.key}
+              onClick={() => handleRowClick(file)}
+              className={`absolute top-0 left-0 w-full flex items-center border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors duration-150 group cursor-pointer ${
+                selectedIds.has(file.id) ? 'bg-blue-500/5' : ''
+              }`}
+              style={{
+                height: `${virtualRow.size}px`,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              <div className="px-5 py-3.5 w-14 shrink-0" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(file.id)}
+                  onChange={() => {}}
+                  onClick={(e) => handleSelectFile(e, file.id)}
+                  className="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900 cursor-pointer"
+                />
+              </div>
+              <div className="px-5 py-3.5 flex-1 min-w-0">
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-lg ${typeInfo.bg} shrink-0`}>
+                    <TypeIcon size={16} className={typeInfo.color} />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="font-medium text-neutral-200 text-sm truncate block max-w-[220px]" title={file.name}>
+                      {file.name}
+                    </span>
+                    {searchQuery && file.path !== file.name && (
+                      <div className="text-[11px] text-neutral-500 mt-0.5 truncate max-w-[200px]" title={file.path}>
+                        {file.path}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="px-5 py-3.5 w-28 shrink-0">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${badge.cls}`}>
+                  {badge.icon} {badge.label}
+                </span>
+              </div>
+              <div className="px-5 py-3.5 w-24 shrink-0 text-sm text-neutral-400 hidden sm:block truncate">{file.size}</div>
+              <div className="px-5 py-3.5 w-28 shrink-0 text-sm text-neutral-400 hidden md:block truncate">{file.date}</div>
+              <div className="px-5 py-3.5 w-16 shrink-0 text-right" onClick={(e) => e.stopPropagation()}>
+                {!file.isDirectory && file.driveId ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShareFiles([file]);
+                    }}
+                    className="text-neutral-500 hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                    title="Share File"
+                  >
+                    <Share2 size={16} />
+                  </button>
+                ) : (
+                  <div className="w-7 h-7 inline-block"></div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const FilesView = React.memo(function FilesView() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -94,6 +206,12 @@ export const FilesView = React.memo(function FilesView() {
   // File Deletion State
   const [filesToDelete, setFilesToDelete] = useState<FileItem[] | null>(null);
   const [deletingFiles, setDeletingFiles] = useState(false);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
+  const [addingFiles, setAddingFiles] = useState(false);
+  const [showSyncIgnoreModal, setShowSyncIgnoreModal] = useState(false);
+  const [activeFolderHandle, setActiveFolderHandle] = useState<FileSystemDirectoryHandle | null>(null);
+  const handleForceSyncRef = useRef<(() => void) | null>(null);
 
   const { showToast } = useToast();
 
@@ -124,47 +242,78 @@ export const FilesView = React.memo(function FilesView() {
         return;
       }
 
-      const [localFiles, driveFiles] = await Promise.all([
-        readFolderFiles(entry.handle),
-        fetchDriveFiles(),
-      ]);
+      // Navigate to the current subdirectory handle
+      let targetHandle = entry.handle;
+      const prefix = currentPath;
+      if (currentPath !== '') {
+        const parts = currentPath.split('/');
+        for (const p of parts) {
+          targetHandle = await targetHandle.getDirectoryHandle(p);
+        }
+      }
 
+      // 1. Fetch local files immediately so UI doesn't hang on skeletons
+      // Pass entry.handle (root handle) so it can parse .syncignore correctly for subfolders
+      const localFiles = await readFolderChildren(targetHandle, prefix, entry.handle);
+      
+      const initialMerged: FileItem[] = localFiles.map((lf): FileItem => ({
+        id: lf.id,
+        name: lf.name,
+        type: lf.isDirectory ? 'folder' : 'file',
+        isDirectory: lf.isDirectory,
+        status: 'Syncing', // Temporary status while we check Drive
+        size: lf.isDirectory ? '--' : formatBytes(lf.size),
+        sizeBytes: lf.size,
+        path: lf.path,
+        date: formatDate(lf.lastModified),
+        mimeType: lf.mimeType,
+        handle: lf.handle,
+      }));
+
+      setFiles(initialMerged);
+      setLoading(false); // Stop showing skeletons immediately
+
+      // 2. Fetch Drive files in background to update sync statuses
+      const driveFiles = await fetchDriveFiles();
       const driveByNameAndParent = new Map<string, DriveFile>();
       driveFiles.forEach((f) => driveByNameAndParent.set(f.name.toLowerCase(), f));
 
-      const merged: FileItem[] = localFiles.map((lf): FileItem => {
-        const driveMatch = driveByNameAndParent.get(lf.name.toLowerCase());
-        return {
-          id: lf.id,
-          name: lf.name,
-          type: lf.isDirectory ? 'folder' : 'file',
-          isDirectory: lf.isDirectory,
-          status: driveMatch ? 'Synced' : 'Local Only',
-          size: lf.isDirectory ? '--' : formatBytes(lf.size),
-          sizeBytes: lf.size,
-          path: lf.path,
-          date: formatDate(lf.lastModified),
-          driveId: driveMatch?.id,
-          mimeType: lf.mimeType,
-          thumbnailLink: driveMatch?.thumbnailLink,
-          iconLink: driveMatch?.iconLink,
-          handle: lf.handle,
-        };
-      });
+      setFiles(prevFiles => {
+        // Simple safeguard: only update if the file paths match our prefix
+        // (in case the user quickly navigated to another folder before Drive fetch finished)
+        if (prevFiles.length > 0 && !prevFiles[0].path.startsWith(prefix)) {
+          return prevFiles;
+        }
 
-      setFiles(merged);
+        return prevFiles.map(file => {
+          const driveMatch = driveByNameAndParent.get(file.name.toLowerCase());
+          return {
+            ...file,
+            status: driveMatch ? 'Synced' : 'Local Only',
+            driveId: driveMatch?.id,
+            thumbnailLink: driveMatch?.thumbnailLink,
+            iconLink: driveMatch?.iconLink,
+          };
+        });
+      });
     } catch (err: any) {
       console.error('Error loading files', err);
       showToast(`Failed to load files: ${err.message || 'Unknown error'}`, 'error');
     } finally {
       setLoading(false);
     }
-  }, [activeFolderId, showToast]);
+  }, [activeFolderId, currentPath, showToast]);
 
-  // Reload files when active folder changes
+  // Reset path when active folder changes
   useEffect(() => {
     if (activeFolderId) {
       setCurrentPath('');
+    }
+  }, [activeFolderId]);
+
+  // Reload files when dependencies change
+  useEffect(() => {
+    if (activeFolderId) {
       loadFiles();
     }
   }, [activeFolderId, loadFiles]);
@@ -192,7 +341,8 @@ export const FilesView = React.memo(function FilesView() {
     return parts.join('/');
   };
 
-  const handleAddFolder = useCallback(async () => {
+  const proceedWithAddFolder = useCallback(async () => {
+    setShowPermissionModal(false);
     setAddingFolder(true);
     try {
       const entry = await addLocalFolder();
@@ -210,6 +360,10 @@ export const FilesView = React.memo(function FilesView() {
       setAddingFolder(false);
     }
   }, [showToast]);
+
+  const handleAddFolder = useCallback(() => {
+    setShowPermissionModal(true);
+  }, []);
 
   const handleForceSync = useCallback(async () => {
     if (!userRef.current) { showToast('Connect your Google account first.', 'error'); return; }
@@ -244,6 +398,53 @@ export const FilesView = React.memo(function FilesView() {
       setSyncProgressMsg('');
     }
   }, [activeFolderId, loadFiles, showToast]);
+  handleForceSyncRef.current = handleForceSync;
+
+  const handleAddFiles = useCallback(async () => {
+    if (!activeFolderId) {
+      showToast('Select a folder first.', 'error');
+      return;
+    }
+    try {
+      const handles = await (window as any).showOpenFilePicker({ multiple: true });
+      if (!handles || handles.length === 0) return;
+      
+      setAddingFiles(true);
+      const entry = await getLocalFolderById(activeFolderId);
+      if (!entry) throw new Error('Folder not found or permission denied');
+      
+      let targetHandle = entry.handle;
+      if (currentPath !== '') {
+        const parts = currentPath.split('/');
+        for (const p of parts) {
+          targetHandle = await targetHandle.getDirectoryHandle(p);
+        }
+      }
+
+      let hasNewFiles = false;
+      for (const handle of handles) {
+        const file = await handle.getFile();
+        const newFileHandle = await targetHandle.getFileHandle(file.name, { create: true });
+        const writable = await (newFileHandle as any).createWritable();
+        await writable.write(file);
+        await writable.close();
+        hasNewFiles = true;
+      }
+      
+      if (hasNewFiles) {
+        showToast("Files added successfully!", "success");
+        loadFiles();
+        handleForceSyncRef.current?.();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        showToast(err.message || 'Failed to add files', 'error');
+      }
+    } finally {
+      setAddingFiles(false);
+      setIsFabMenuOpen(false);
+    }
+  }, [activeFolderId, currentPath, loadFiles, showToast]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (!activeFolderId) return;
@@ -305,22 +506,22 @@ export const FilesView = React.memo(function FilesView() {
       if (hasNewFiles) {
         showToast("Files saved successfully!", "success");
         loadFiles();
-        handleForceSync();
+        handleForceSyncRef.current?.();
       }
     } catch (err: any) {
       console.error('Drop error:', err);
       showToast(err.message || 'Failed to save dropped files', 'error');
     }
-  }, [activeFolderId, currentPath, loadFiles, handleForceSync, showToast]);
+  }, [activeFolderId, currentPath, loadFiles, showToast]);
 
   const filteredFiles = useMemo(() => {
     const q = searchQuery.toLowerCase();
     if (q) {
       return files.filter((f) => f.name.toLowerCase().includes(q) || f.date.toLowerCase().includes(q));
-    } else {
-      return files.filter((f) => getParentPath(f.path) === currentPath);
     }
-  }, [files, searchQuery, currentPath]);
+    // readFolderChildren already returns only the current directory's children
+    return files;
+  }, [files, searchQuery]);
 
   const handleSelectAll = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSelectedIds(e.target.checked ? new Set(filteredFiles.map((f) => f.id)) : new Set());
@@ -394,6 +595,55 @@ export const FilesView = React.memo(function FilesView() {
   };
 
   const activeFolder = folders.find(f => f.id === activeFolderId);
+
+  // Load the active folder's handle for the syncignore modal
+  useEffect(() => {
+    if (!activeFolderId) { setActiveFolderHandle(null); return; }
+    getLocalFolderById(activeFolderId).then(entry => {
+      setActiveFolderHandle(entry?.handle ?? null);
+    });
+  }, [activeFolderId]);
+
+  // Handler: add selected files to .syncignore
+  const handleIgnoreFiles = useCallback(async () => {
+    if (!activeFolderHandle || selectedIds.size === 0) return;
+    const selected = filteredFiles.filter(f => selectedIds.has(f.id));
+    if (selected.length === 0) return;
+
+    try {
+      // Read existing content
+      let existing = '';
+      try {
+        const fh = await activeFolderHandle.getFileHandle('.syncignore');
+        const file = await fh.getFile();
+        existing = await file.text();
+      } catch {
+        // no file yet
+      }
+
+      const lines = existing.split('\n').map(l => l.trim());
+      const newPatterns = selected
+        .map(f => f.path)
+        .filter(p => !lines.includes(p));
+
+      if (newPatterns.length === 0) {
+        showToast('Selected items are already in .syncignore', 'info');
+        return;
+      }
+
+      const updated = existing.trimEnd() + '\n' + newPatterns.join('\n') + '\n';
+      const fh = await activeFolderHandle.getFileHandle('.syncignore', { create: true });
+      const writable = await (fh as any).createWritable();
+      await writable.write(updated);
+      await writable.close();
+
+      showToast(`Added ${newPatterns.length} pattern(s) to .syncignore`, 'success');
+      setSelectedIds(new Set());
+      loadFiles();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update .syncignore', 'error');
+    }
+  }, [activeFolderHandle, selectedIds, filteredFiles, showToast, loadFiles]);
 
   // File counts for badge
   const fileCounts = useMemo(() => {
@@ -586,6 +836,17 @@ export const FilesView = React.memo(function FilesView() {
             {addingFolder ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
             <span className="hidden sm:inline">Add Folder</span>
           </button>
+
+          {activeFolderId && (
+            <button
+              onClick={() => setShowSyncIgnoreModal(true)}
+              title="Manage .syncignore"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-neutral-500 border border-neutral-700/50 hover:border-amber-500/40 hover:text-amber-400 hover:bg-amber-500/5 transition-all duration-200 shrink-0"
+            >
+              <EyeOff size={14} />
+              <span className="hidden sm:inline">.syncignore</span>
+            </button>
+          )}
         </div>
       </header>
       
@@ -645,6 +906,12 @@ export const FilesView = React.memo(function FilesView() {
                   className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                 >
                   <Share2 size={14} /> Share Selected
+                </button>
+                <button
+                  onClick={handleIgnoreFiles}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-400 bg-amber-400/10 hover:bg-amber-400/20 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
+                >
+                  <EyeOff size={14} /> Ignore Selected
                 </button>
                 <button
                   onClick={() => setFilesToDelete(filteredFiles.filter(f => selectedIds.has(f.id)))}
@@ -842,99 +1109,40 @@ export const FilesView = React.memo(function FilesView() {
                     </AnimatePresence>
                   </motion.div>
                 ) : (
-                /* ── List View ── */
+                /* ── List View (Virtualized) ── */
                 <motion.div 
                   key="list"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden overflow-x-auto"
+                  className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden"
                 >
-                  <table className="w-full text-left border-collapse min-w-[600px]">
-                    <thead>
-                      <tr className="border-b border-neutral-800 bg-neutral-900/50">
-                        <th className="px-5 py-3.5 w-10">
-                          <input
-                            type="checkbox"
-                            checked={filteredFiles.length > 0 && selectedIds.size === filteredFiles.length}
-                            onChange={handleSelectAll}
-                            className="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900"
-                          />
-                        </th>
-                        <th className="px-5 py-3.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Name</th>
-                        <th className="px-5 py-3.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Status</th>
-                        <th className="px-5 py-3.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Size</th>
-                        <th className="px-5 py-3.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Modified</th>
-                        <th className="px-5 py-3.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-800 stagger-children">
-                      {filteredFiles.map((file) => {
-                        const typeInfo = getFileTypeInfo(file.name, file.mimeType, file.isDirectory);
-                        const TypeIcon = typeInfo.icon;
-                        const badge = statusBadge[file.status];
-                        return (
-                          <tr
-                            key={file.id}
-                            onClick={() => handleRowClick(file)}
-                            className={`hover:bg-neutral-800/50 transition-colors duration-150 group cursor-pointer ${
-                              selectedIds.has(file.id) ? 'bg-blue-500/5' : ''
-                            }`}
-                          >
-                            <td className="px-5 py-3.5" onClick={(e) => e.stopPropagation()}>
-                              <input
-                                type="checkbox"
-                                checked={selectedIds.has(file.id)}
-                                onChange={() => {}}
-                                onClick={(e) => handleSelectFile(e, file.id)}
-                                className="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900 cursor-pointer"
-                              />
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <div className="flex items-center gap-3">
-                                <div className={`p-1.5 rounded-lg ${typeInfo.bg} shrink-0`}>
-                                  <TypeIcon size={16} className={typeInfo.color} />
-                                </div>
-                                <div className="min-w-0">
-                                  <span className="font-medium text-neutral-200 text-sm truncate block max-w-[220px]" title={file.name}>
-                                    {file.name}
-                                  </span>
-                                  {searchQuery && file.path !== file.name && (
-                                    <div className="text-[11px] text-neutral-500 mt-0.5 truncate max-w-[200px]" title={file.path}>
-                                      {file.path}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${badge.cls}`}>
-                                {badge.icon} {badge.label}
-                              </span>
-                            </td>
-                            <td className="px-5 py-3.5 text-sm text-neutral-400">{file.size}</td>
-                            <td className="px-5 py-3.5 text-sm text-neutral-400">{file.date}</td>
-                            <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                              {!file.isDirectory && file.driveId ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShareFiles([file]);
-                                  }}
-                                  className="text-neutral-500 hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-all"
-                                  title="Share File"
-                                >
-                                  <Share2 size={16} />
-                                </button>
-                              ) : (
-                                <div className="w-7 h-7 inline-block"></div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                  {/* Header row */}
+                  <div className="flex items-center border-b border-neutral-800 bg-neutral-900/50 min-w-[600px]">
+                    <div className="px-5 py-3.5 w-14 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={filteredFiles.length > 0 && selectedIds.size === filteredFiles.length}
+                        onChange={handleSelectAll}
+                        className="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-neutral-900"
+                      />
+                    </div>
+                    <div className="px-5 py-3.5 flex-1 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Name</div>
+                    <div className="px-5 py-3.5 w-28 shrink-0 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Status</div>
+                    <div className="px-5 py-3.5 w-24 shrink-0 text-xs font-semibold text-neutral-400 uppercase tracking-wider hidden sm:block">Size</div>
+                    <div className="px-5 py-3.5 w-28 shrink-0 text-xs font-semibold text-neutral-400 uppercase tracking-wider hidden md:block">Modified</div>
+                    <div className="px-5 py-3.5 w-16 shrink-0 text-xs font-semibold text-neutral-400 uppercase tracking-wider text-right">Actions</div>
+                  </div>
+                  {/* Virtualized rows */}
+                  <VirtualizedListBody
+                    files={filteredFiles}
+                    selectedIds={selectedIds}
+                    searchQuery={searchQuery}
+                    statusBadge={statusBadge}
+                    handleRowClick={handleRowClick}
+                    handleSelectFile={handleSelectFile}
+                    setShareFiles={setShareFiles}
+                  />
                 </motion.div>
               )}
               </AnimatePresence>
@@ -959,19 +1167,54 @@ export const FilesView = React.memo(function FilesView() {
         )}
       </div>
 
-      {/* Floating Action Button (FAB) for Add Folder */}
-      <motion.button
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={handleAddFolder}
-        disabled={addingFolder}
-        title="Add New Folder"
-        className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-40 w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {addingFolder ? <Loader2 size={24} className="animate-spin" /> : <Plus size={24} />}
-      </motion.button>
+      {/* Floating Action Button (FAB) Menu */}
+      <div className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-40 flex flex-col items-end gap-3">
+        <AnimatePresence>
+          {isFabMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.8 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.8 }}
+              className="flex flex-col gap-3 mb-2"
+            >
+              <button
+                onClick={() => { setIsFabMenuOpen(false); handleAddFolder(); }}
+                disabled={addingFolder}
+                className="flex items-center gap-3 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-neutral-200 text-sm font-medium shadow-lg transition-colors border border-neutral-700/50"
+              >
+                <span>Add Folder</span>
+                <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                  <FolderPlus size={16} />
+                </div>
+              </button>
+              
+              {activeFolderId && (
+                <button
+                  onClick={handleAddFiles}
+                  disabled={addingFiles || syncing}
+                  className="flex items-center gap-3 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-neutral-200 text-sm font-medium shadow-lg transition-colors border border-neutral-700/50"
+                >
+                  <span>Add File(s)</span>
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    {addingFiles ? <Loader2 size={16} className="animate-spin" /> : <FilePlus size={16} />}
+                  </div>
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => setIsFabMenuOpen(!isFabMenuOpen)}
+          className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-300 ${
+            isFabMenuOpen ? 'bg-neutral-700 shadow-neutral-900/50 rotate-45' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/30'
+          }`}
+        >
+          {addingFolder || addingFiles ? <Loader2 size={24} className="animate-spin" /> : <Plus size={24} />}
+        </motion.button>
+      </div>
 
       {/* File Preview Modal */}
       <AnimatePresence>
@@ -1002,6 +1245,61 @@ export const FilesView = React.memo(function FilesView() {
             isOpen={currentConflicts.length > 0}
             conflicts={currentConflicts}
             onResolve={resolveConflictFn}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Pre-Permission Modal */}
+      <AnimatePresence>
+        {showPermissionModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={20} className="text-blue-400" />
+                </div>
+                <h3 className="text-xl font-bold text-neutral-100">Permission Required</h3>
+              </div>
+              <p className="text-neutral-400 text-sm mb-6 leading-relaxed">
+                In the next step, your browser will ask for permission to view and edit files in the folder you select. <br /><br />
+                <strong className="text-neutral-200">Please click "Allow" on the native browser prompt</strong> to enable CloudSync to synchronize your files.
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowPermissionModal(false)}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={proceedWithAddFolder}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-500/20"
+                >
+                  Continue
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* SyncIgnore Editor Modal */}
+      <AnimatePresence>
+        {showSyncIgnoreModal && (
+          <SyncIgnoreModal
+            isOpen={showSyncIgnoreModal}
+            onClose={() => setShowSyncIgnoreModal(false)}
+            folderHandle={activeFolderHandle}
+            folderName={activeFolder?.name || ''}
+            onSaved={() => {
+              showToast('.syncignore updated — refreshing files', 'success');
+              loadFiles();
+            }}
           />
         )}
       </AnimatePresence>

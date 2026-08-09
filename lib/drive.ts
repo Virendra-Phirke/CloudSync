@@ -11,6 +11,56 @@ export interface DriveFile {
   iconLink?: string;
 }
 
+// ─── Retry / Rate-limit helper ──────────────────────────────────────────────
+
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 1000;
+
+/**
+ * Wraps a fetch call with exponential-backoff retry on 429 and 5xx responses.
+ * Respects `Retry-After` header when present.
+ */
+async function fetchWithRetry(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+  retries = MAX_RETRIES
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(input, init);
+
+      if (res.ok || (res.status >= 400 && res.status < 429) || res.status === 404) {
+        return res; // non-retryable status
+      }
+
+      if (res.status === 429 || res.status >= 500) {
+        const retryAfter = res.headers.get('Retry-After');
+        const delayMs = retryAfter
+          ? parseInt(retryAfter, 10) * 1000
+          : INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        console.warn(`[Drive] ${res.status} on attempt ${attempt + 1}, retrying in ${delayMs}ms...`);
+        await new Promise(r => setTimeout(r, delayMs));
+        continue;
+      }
+
+      return res; // other 4xx — don't retry
+    } catch (err: any) {
+      lastError = err;
+      if (attempt < retries) {
+        const delayMs = INITIAL_BACKOFF_MS * Math.pow(2, attempt);
+        console.warn(`[Drive] Network error on attempt ${attempt + 1}, retrying in ${delayMs}ms...`, err.message);
+        await new Promise(r => setTimeout(r, delayMs));
+      }
+    }
+  }
+
+  throw lastError || new Error('fetchWithRetry failed after retries');
+}
+
+// ─── Drive API ──────────────────────────────────────────────────────────────
+
 export async function fetchDriveFiles(): Promise<DriveFile[]> {
   const token = await getAccessToken();
   if (!token) {
@@ -19,14 +69,22 @@ export async function fetchDriveFiles(): Promise<DriveFile[]> {
   }
 
   try {
-    const response = await fetch('https://www.googleapis.com/drive/v3/files?fields=files(id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink)&pageSize=50', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) throw new Error('Failed to fetch files');
-    const data = await response.json();
-    const files = data.files || [];
-    await set('drive_files_cache', files);
-    return files;
+    let allFiles: DriveFile[] = [];
+    let pageToken = '';
+
+    do {
+      const url = `https://www.googleapis.com/drive/v3/files?fields=nextPageToken,files(id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink)&pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ''}`;
+      const response = await fetchWithRetry(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to fetch files');
+      const data = await response.json();
+      if (data.files) allFiles = allFiles.concat(data.files);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    await set('drive_files_cache', allFiles);
+    return allFiles;
   } catch (err) {
     console.warn('Network error, falling back to cache for files', err);
     const cachedFiles = await get('drive_files_cache');
@@ -38,7 +96,7 @@ export async function getDriveFileText(fileId: string): Promise<string> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
   
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+  const response = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   
@@ -53,7 +111,7 @@ export async function getDriveFileBlob(fileId: string): Promise<Blob> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated');
   
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+  const response = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   
@@ -70,13 +128,21 @@ export async function fetchDriveFolders(): Promise<DriveFile[]> {
 
   try {
     const q = encodeURIComponent("mimeType='application/vnd.google-apps.folder' and trashed=false");
-    const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,modifiedTime)&pageSize=100&orderBy=name`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!response.ok) throw new Error('Failed to fetch folders');
-    const data = await response.json();
-    return data.files || [];
+    let allFolders: DriveFile[] = [];
+    let pageToken = '';
+
+    do {
+      const response = await fetchWithRetry(
+        `https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType,modifiedTime)&pageSize=1000&orderBy=name${pageToken ? `&pageToken=${pageToken}` : ''}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!response.ok) throw new Error('Failed to fetch folders');
+      const data = await response.json();
+      if (data.files) allFolders = allFolders.concat(data.files);
+      pageToken = data.nextPageToken || '';
+    } while (pageToken);
+
+    return allFolders;
   } catch (err) {
     console.warn('Failed to fetch Drive folders', err);
     return [];
@@ -99,7 +165,7 @@ export async function fetchDriveQuota(): Promise<DriveQuota | null> {
   }
 
   try {
-    const response = await fetch('https://www.googleapis.com/drive/v3/about?fields=storageQuota', {
+    const response = await fetchWithRetry('https://www.googleapis.com/drive/v3/about?fields=storageQuota', {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -133,7 +199,7 @@ export async function findOrCreateDriveFolder(name: string, parentId?: string): 
   }
 
   // 1. Check if it exists
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`, {
+  const res = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error('Failed to query folder');
@@ -152,7 +218,7 @@ export async function findOrCreateDriveFolder(name: string, parentId?: string): 
     metadata.parents = [parentId];
   }
 
-  const createRes = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+  const createRes = await fetchWithRetry('https://www.googleapis.com/drive/v3/files?fields=id', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -173,7 +239,7 @@ export async function getDriveFileByName(name: string, parentId: string): Promis
   const escapeName = name.replace(/'/g, "\\'");
   const q = `name='${escapeName}' and '${parentId}' in parents and trashed=false and mimeType!='application/vnd.google-apps.folder'`;
   
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,modifiedTime,md5Checksum,thumbnailLink,iconLink)`, {
+  const res = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,mimeType,size,modifiedTime,md5Checksum,thumbnailLink,iconLink)`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   if (!res.ok) throw new Error('Failed to query file');
@@ -195,7 +261,7 @@ export async function fetchDriveFilesByParent(parentId: string): Promise<(DriveF
   let pageToken = '';
   
   do {
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,thumbnailLink,iconLink)&pageToken=${pageToken}`, {
+    const res = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=nextPageToken,files(id,name,mimeType,size,modifiedTime,md5Checksum,thumbnailLink,iconLink)&pageSize=1000${pageToken ? `&pageToken=${pageToken}` : ''}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     if (!res.ok) throw new Error('Failed to query files in folder');
@@ -211,7 +277,7 @@ export async function updateDriveFile(fileId: string, file: File): Promise<Drive
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated to upload');
 
-  const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink`, {
+  const response = await fetchWithRetry(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink`, {
     method: 'PATCH',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -246,7 +312,7 @@ export async function uploadFileToDrive(file: File, parentId?: string): Promise<
   formData.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
   formData.append('file', file);
 
-  const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink', {
+  const response = await fetchWithRetry('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,size,modifiedTime,thumbnailLink,iconLink', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -292,7 +358,7 @@ export async function deleteDriveFile(fileId: string): Promise<void> {
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated to delete');
 
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+  const response = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
     method: 'DELETE',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -315,7 +381,7 @@ export async function shareDriveFile(fileId: string, role: 'reader' | 'writer' =
   const token = await getAccessToken();
   if (!token) throw new Error('Not authenticated to share');
 
-  const permRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+  const permRes = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -329,7 +395,7 @@ export async function shareDriveFile(fileId: string, role: 'reader' | 'writer' =
     throw new Error(err.error?.message || 'Failed to update sharing permissions');
   }
 
-  const fileRes = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
+  const fileRes = await fetchWithRetry(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=webViewLink`, {
     headers: { Authorization: `Bearer ${token}` }
   });
   

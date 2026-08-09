@@ -606,12 +606,16 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
         setLoading(false);
         return;
       }
+      
+      // Google Workspace documents cannot be downloaded directly via alt=media
+      const isGoogleWorkspace = file.mimeType?.startsWith('application/vnd.google-apps.');
+      
       setLoading(true);
       try {
         let f: File;
         if (file.handle) {
           f = await file.handle.getFile();
-        } else if (file.driveId) {
+        } else if (file.driveId && !isGoogleWorkspace) {
           const blob = await getDriveFileBlob(file.driveId);
           f = new File([blob], file.name, { type: file.mimeType || 'application/octet-stream' });
         } else {
@@ -624,8 +628,11 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
           url = URL.createObjectURL(f);
           setObjectUrl(url);
         }
-      } catch (err) {
-        console.error('Failed to read file:', err);
+      } catch (err: any) {
+        // Silently catch fetch errors for previews so it doesn't trigger Next.js error overlays
+        if (err.message !== 'Failed to fetch file contents') {
+          console.warn('Could not read file for preview:', err);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -636,7 +643,7 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [file.handle, file.isDirectory, viewerType]);
+  }, [file.handle, file.isDirectory, viewerType, file.driveId, file.mimeType, file.name]);
 
   // Handle Save for text files
   const handleSaveText = useCallback(async (newContent: string) => {
