@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Copy, X, Plus, Check } from 'lucide-react';
+import { Download, Copy, X, Plus, Check, Search } from 'lucide-react';
 
 const COLORS = {
   sky: { dot: 'bg-sky-400', text: 'text-sky-300', soft: 'text-sky-400/60' },
@@ -113,8 +113,31 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   
   const [newPatterns, setNewPatterns] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!searchQuery || !isOpen) return;
+    const lowerQuery = searchQuery.toLowerCase();
+    
+    const timeout = setTimeout(() => {
+      const activeDomains = domains.filter(d => d.on);
+      for (const c of activeDomains) {
+        if (c.name.toLowerCase().includes(lowerQuery)) {
+          const el = document.getElementById(`domain-${c.id}`);
+          if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+        }
+        for (let i = 0; i < c.patterns.length; i++) {
+          if (c.patterns[i].toLowerCase().includes(lowerQuery)) {
+            const el = document.getElementById(`pattern-${c.id}-${i}`);
+            if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+          }
+        }
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchQuery, domains, isOpen]);
 
   useEffect(() => {
     if (!isOpen || !folderHandle) return;
@@ -227,6 +250,22 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
                 {folderName}
               </div>
               
+              <div className="flex items-center bg-black/40 rounded px-2 py-1 mr-2 border border-zinc-800 focus-within:border-zinc-600 transition-colors">
+                <Search size={12} className="text-zinc-500 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search rules..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="bg-transparent text-xs text-zinc-200 outline-none w-24 md:w-32 placeholder-zinc-600"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="text-zinc-500 hover:text-zinc-300 ml-1">
+                    <X size={10} />
+                  </button>
+                )}
+              </div>
+              
               <button 
                 onClick={() => {
                   navigator.clipboard.writeText(compileSyncIgnore(domains));
@@ -265,7 +304,7 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
                       globalLineNumber++;
                       
                       return (
-                        <div key={c.id} className="mb-4">
+                        <div key={c.id} id={`domain-${c.id}`} className="mb-4">
                           {/* Domain Header */}
                           <div className="group flex items-center gap-3 px-6 pt-3 pb-2 hover:bg-white/[.02]">
                             <span className="w-8 shrink-0 text-right text-zinc-700 select-none text-[11px] tabular-nums">{globalLineNumber}</span>
@@ -289,7 +328,7 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
                           {c.patterns.map((p, idx) => {
                             globalLineNumber++;
                             return (
-                              <div key={idx} className="group flex items-center gap-3 px-6 hover:bg-white/[.04] leading-relaxed py-0.5">
+                              <div key={idx} id={`pattern-${c.id}-${idx}`} className="group flex items-center gap-3 px-6 hover:bg-white/[.04] leading-relaxed py-0.5">
                                 <span className="w-8 shrink-0 text-right text-zinc-700 select-none text-[11px] tabular-nums">{globalLineNumber}</span>
                                 <input 
                                   value={p}
