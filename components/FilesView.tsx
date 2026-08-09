@@ -447,7 +447,7 @@ export const FilesView = React.memo(function FilesView() {
 
   // Keep screen awake while syncing to reduce background throttling
   useEffect(() => {
-    let wakeLock: WakeLockSentinel | null = null;
+    let wakeLock: any = null;
     const requestWakeLock = async () => {
       try {
         if ('wakeLock' in navigator && syncing) {
