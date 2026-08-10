@@ -92,7 +92,7 @@ const VirtualizedListBody = React.memo(({
   const rowVirtualizer = useVirtualizer({
     count: files.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 52,
+    estimateSize: () => 44,
     overscan: 10,
   });
 
@@ -180,6 +180,8 @@ const VirtualizedListBody = React.memo(({
     </div>
   );
 });
+
+VirtualizedListBody.displayName = 'VirtualizedListBody';
 
 export const FilesView = React.memo(function FilesView() {
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -708,50 +710,52 @@ export const FilesView = React.memo(function FilesView() {
       </AnimatePresence>
 
       {/* Header */}
-      <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 flex flex-col gap-4 sticky top-0 bg-neutral-950/95 z-10">
+      <header className="px-6 max-md:pl-16 border-b border-neutral-800 sticky top-0 bg-neutral-950/95 z-10">
         {/* Top row */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col min-w-0 flex-1 mr-4">
-            <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Files</h2>
+        <div className="flex items-center justify-between gap-4 py-3">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-x-auto whitespace-nowrap hide-scrollbar">
+            <h2 className="text-sm font-semibold text-neutral-200 shrink-0">Files</h2>
             {activeFolder && (
-              <div className="flex items-center gap-1.5 mt-1 text-sm text-neutral-400 overflow-x-auto whitespace-nowrap hide-scrollbar pb-1">
+              <>
+                <ChevronRight size={14} className="text-neutral-600 shrink-0" />
                 <button 
                   onClick={() => handleNavigate(-1)}
-                  className={`hover:text-neutral-200 transition-colors shrink-0 ${currentPath === '' ? 'text-neutral-200 font-medium' : ''}`}
+                  className={`text-sm hover:text-neutral-100 transition-colors shrink-0 ${currentPath === '' ? 'text-neutral-100 font-medium' : 'text-neutral-400'}`}
                 >
                   {activeFolder.name}
                 </button>
                 {breadcrumbs.map((crumb, idx) => (
                   <React.Fragment key={idx}>
-                    <ChevronRight size={12} className="text-neutral-600 shrink-0" />
+                    <ChevronRight size={14} className="text-neutral-600 shrink-0" />
                     <button 
                       onClick={() => handleNavigate(idx)}
-                      className={`hover:text-neutral-200 transition-colors truncate ${idx === breadcrumbs.length - 1 ? 'text-neutral-200 font-medium' : ''}`}
+                      className={`text-sm hover:text-neutral-100 transition-colors truncate ${idx === breadcrumbs.length - 1 ? 'text-neutral-100 font-medium' : 'text-neutral-400'}`}
                     >
                       {crumb}
                     </button>
                   </React.Fragment>
                 ))}
-              </div>
+              </>
             )}
           </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
+          <div className="flex items-center gap-3 shrink-0">
             {/* Search */}
-            <div className="relative flex-1 md:flex-none">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" size={15} />
+            <div className="relative hidden sm:block">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500" size={14} />
               <input
                 type="text"
                 placeholder="Search files..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-2 text-sm bg-neutral-900 border border-neutral-800 text-neutral-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all w-full md:w-56 placeholder:text-neutral-500"
+                className="pl-8 pr-14 py-1.5 text-sm bg-neutral-900 border border-neutral-800 text-neutral-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition-all w-48 placeholder:text-neutral-500"
               />
+              <kbd className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-neutral-500 bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-700 font-mono pointer-events-none">⌘K</kbd>
             </div>
             
             {/* Action Buttons Group */}
             <div className="flex items-center gap-2 justify-end shrink-0">
               {/* View toggle */}
-              <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-xl p-0.5">
+              <div className="flex items-center bg-neutral-900 border border-neutral-800 rounded-lg p-0.5">
                 <button
                   onClick={() => setViewMode('grid')}
                   className={`p-1.5 rounded-lg transition-all duration-200 ${
@@ -777,7 +781,7 @@ export const FilesView = React.memo(function FilesView() {
                 onClick={loadFiles}
                 disabled={noFolders || loading || syncing}
                 title="Refresh files"
-                className="flex items-center gap-2 px-3 py-2 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-200 text-sm font-medium rounded-xl transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-neutral-900 hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-300 text-sm font-medium rounded-lg transition-colors border border-neutral-800"
               >
                 {loading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
                 <span className="hidden sm:inline">Refresh</span>
@@ -787,7 +791,7 @@ export const FilesView = React.memo(function FilesView() {
               <button
                 onClick={handleForceSync}
                 disabled={noFolders || loading || syncing || noAccount}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm shadow-blue-500/20 hover:shadow-blue-500/30"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
               >
                 {syncing ? <Loader2 size={15} className="animate-spin" /> : <UploadCloud size={15} />}
                 <span className="hidden sm:inline">{syncing ? 'Syncing...' : 'Sync to Drive'}</span>
@@ -797,14 +801,14 @@ export const FilesView = React.memo(function FilesView() {
           </div>
         </div>
 
-        {/* Folder Selection Row */}
-        <div className="flex items-center gap-3 mt-4 md:mt-0">
+        {/* Row 2: Toolbar */}
+        <div className="flex items-center gap-2 py-2.5 border-t border-neutral-800/50">
           <div className="relative">
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
-              className="flex items-center justify-between min-w-[200px] max-w-[280px] gap-3 px-4 py-2 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/80 rounded-xl transition-colors shadow-sm group"
+              className="flex items-center justify-between min-w-[180px] max-w-[240px] gap-2 px-3 py-1.5 bg-neutral-900 border border-neutral-800 hover:border-neutral-700 hover:bg-neutral-800/80 rounded-lg transition-colors group"
             >
               <div className="flex items-center gap-2.5 truncate">
                 <Folder size={16} className="text-blue-400 shrink-0" />
@@ -824,7 +828,7 @@ export const FilesView = React.memo(function FilesView() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.98 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute left-0 top-full mt-2 w-64 bg-neutral-900 border border-neutral-800 shadow-xl rounded-xl z-50 overflow-hidden"
+                    className="absolute left-0 top-full mt-1 w-56 bg-neutral-900 border border-neutral-800 shadow-xl rounded-lg z-50 overflow-hidden"
                   >
                     <div className="max-h-60 overflow-y-auto p-1.5 hide-scrollbar">
                       {folders.map(folder => (
@@ -856,21 +860,66 @@ export const FilesView = React.memo(function FilesView() {
             </AnimatePresence>
           </div>
           
-          <button
-            onClick={handleAddFolder}
-            disabled={addingFolder}
-            title="Add New Folder"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-neutral-500 border border-dashed border-neutral-700 hover:border-neutral-500 hover:text-neutral-300 hover:bg-neutral-900 transition-all duration-200 shrink-0"
-          >
-            {addingFolder ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
-            <span className="hidden sm:inline">Add Folder</span>
-          </button>
+            {/* + New dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsFabMenuOpen(!isFabMenuOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                <Plus size={14} />
+                <span>New</span>
+                <ChevronDown size={12} className={`transition-transform duration-150 ${isFabMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <AnimatePresence>
+                {isFabMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setIsFabMenuOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                      transition={{ duration: 0.12 }}
+                      className="absolute left-0 top-full mt-1 w-44 bg-neutral-900 border border-neutral-800 shadow-xl rounded-lg z-50 overflow-hidden p-1"
+                    >
+                      <button
+                        onClick={() => { setIsFabMenuOpen(false); handleAddFolder(); }}
+                        disabled={addingFolder}
+                        className="flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-md text-sm text-neutral-300 hover:bg-neutral-800 transition-colors"
+                      >
+                        {addingFolder ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} className="text-neutral-500" />}
+                        <span>New Folder</span>
+                      </button>
+                      {activeFolderId && (
+                        <button
+                          onClick={() => { setIsFabMenuOpen(false); handleAddFiles(); }}
+                          disabled={addingFiles || syncing}
+                          className="flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-md text-sm text-neutral-300 hover:bg-neutral-800 transition-colors"
+                        >
+                          {addingFiles ? <Loader2 size={14} className="animate-spin" /> : <FilePlus size={14} className="text-neutral-500" />}
+                          <span>Add Files</span>
+                        </button>
+                      )}
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
+          
+            <button
+              onClick={handleAddFolder}
+              disabled={addingFolder}
+              title="Add New Folder"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-neutral-500 border border-dashed border-neutral-700 hover:border-neutral-500 hover:text-neutral-300 hover:bg-neutral-900 transition-colors shrink-0"
+            >
+              {addingFolder ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
+              <span className="hidden sm:inline">Add Folder</span>
+            </button>
 
           {activeFolderId && (
             <button
               onClick={() => setShowSyncIgnoreModal(true)}
               title="Manage .syncignore"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium text-neutral-500 border border-neutral-700/50 hover:border-amber-500/40 hover:text-amber-400 hover:bg-amber-500/5 transition-all duration-200 shrink-0"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-medium text-neutral-500 border border-neutral-700/50 hover:border-amber-500/40 hover:text-amber-400 hover:bg-amber-500/5 transition-colors shrink-0"
             >
               <EyeOff size={14} />
               <span className="hidden sm:inline">.syncignore</span>
@@ -1017,17 +1066,17 @@ export const FilesView = React.memo(function FilesView() {
             {loading ? (
               <div className="w-full">
                 {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 animate-pulse">
-                    {Array.from({ length: 12 }).map((_, i) => (
-                      <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 h-36">
-                        <div className="w-12 h-12 bg-neutral-800 rounded-xl mb-4" />
-                        <div className="w-3/4 h-4 bg-neutral-800 rounded mb-2" />
-                        <div className="w-1/2 h-3 bg-neutral-800 rounded" />
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 animate-pulse">
+                    {Array.from({ length: 14 }).map((_, i) => (
+                      <div key={i} className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 h-[100px]">
+                        <div className="w-9 h-9 bg-neutral-800 rounded-lg mb-2" />
+                        <div className="w-3/4 h-3.5 bg-neutral-800 rounded mb-1.5" />
+                        <div className="w-1/2 h-3 bg-neutral-800/60 rounded" />
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden animate-pulse">
+                  <div className="bg-neutral-900 border border-neutral-800 rounded-lg overflow-hidden animate-pulse">
                     <div className="flex flex-col">
                       {Array.from({ length: 8 }).map((_, i) => (
                         <div key={i} className="flex items-center gap-4 px-5 py-3 border-b border-neutral-800/50">
@@ -1052,7 +1101,7 @@ export const FilesView = React.memo(function FilesView() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -10 }}
-                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"
+                    className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2"
                   >
                     <AnimatePresence>
                       {filteredFiles.map((file) => {
@@ -1064,19 +1113,18 @@ export const FilesView = React.memo(function FilesView() {
                         return (
                           <motion.div
                             layout
-                            initial={{ opacity: 0, scale: 0.9 }}
+                            initial={{ opacity: 0, scale: 0.97 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            whileHover={{ y: -4, transition: { duration: 0.2 } }}
+                            exit={{ opacity: 0, scale: 0.97 }}
                             key={file.id}
                             onClick={() => handleRowClick(file)}
-                            className={`group relative bg-neutral-900 border rounded-2xl p-4 cursor-pointer transition-all duration-200 hover:bg-neutral-800/70 hover:border-neutral-700 hover:shadow-lg hover:shadow-black/20 ${
+                            className={`group relative bg-neutral-900 border rounded-lg p-3 cursor-pointer transition-colors duration-150 hover:bg-neutral-800/80 hover:border-neutral-700 ${
                               isSelected ? 'border-blue-500/40 bg-blue-500/5 ring-1 ring-blue-500/20' : 'border-neutral-800'
                             }`}
                           >
                             {/* Selection checkbox */}
                             <div
-                              className={`absolute top-3 right-3 z-10 transition-all duration-200 ${
+                              className={`absolute top-2 right-2 z-10 transition-all duration-150 ${
                                 isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-90 group-hover:opacity-100 group-hover:scale-100'
                               }`}
                               onClick={(e) => {
@@ -1092,12 +1140,12 @@ export const FilesView = React.memo(function FilesView() {
                             </div>
                             
                             {/* File icon */}
-                            <div className={`w-12 h-12 rounded-xl ${typeInfo.bg} border ${typeInfo.borderColor} flex items-center justify-center mb-3 transition-transform duration-200 group-hover:scale-105`}>
-                              <TypeIcon size={22} className={typeInfo.color} />
+                            <div className={`w-9 h-9 rounded-lg ${typeInfo.bg} border ${typeInfo.borderColor} flex items-center justify-center mb-2`}>
+                              <TypeIcon size={18} className={typeInfo.color} />
                             </div>
                             
                             {/* File name */}
-                            <p className="text-sm font-medium text-neutral-200 truncate mb-1" title={file.name}>
+                            <p className="text-[13px] font-medium text-neutral-200 truncate" title={file.name}>
                               {file.name}
                             </p>
                             
@@ -1117,7 +1165,7 @@ export const FilesView = React.memo(function FilesView() {
                                     <Share2 size={14} />
                                   </button>
                                 )}
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${
+                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                                   file.status === 'Synced' ? 'bg-emerald-400' :
                                   file.status === 'Syncing' ? 'bg-blue-400 animate-pulse' :
                                   file.status === 'Local Only' ? 'bg-amber-400' : 'bg-neutral-600'
@@ -1178,17 +1226,23 @@ export const FilesView = React.memo(function FilesView() {
               </AnimatePresence>
             ) : (
               /* Empty state */
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-20 gap-2 text-neutral-500">
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center justify-center py-16 gap-2 text-neutral-500">
                 {searchQuery ? (
                   <>
-                    <Search size={32} className="text-neutral-700 mb-1" />
-                    <p className="text-sm font-medium text-neutral-300">No matching files</p>
+                    <Search size={28} className="text-neutral-700 mb-1" />
+                    <p className="text-sm font-medium text-neutral-300">No results for &ldquo;{searchQuery}&rdquo;</p>
                     <p className="text-xs text-neutral-500">Try a different search term</p>
+                    <button onClick={() => setSearchQuery('')} className="mt-3 px-3 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors">Clear search</button>
                   </>
                 ) : (
                   <>
-                    <FolderOpen size={32} className="text-neutral-700 mb-1" />
-                    <p className="text-sm font-medium text-neutral-300">Folder is empty</p>
+                    <FolderOpen size={28} className="text-neutral-700 mb-1" />
+                    <p className="text-sm font-medium text-neutral-300">This folder is empty</p>
+                    <p className="text-xs text-neutral-500 mb-3">Upload files or create a folder to get started</p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={handleAddFiles} disabled={!activeFolderId} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors disabled:opacity-50"><UploadCloud size={14} /> Upload</button>
+                      <button onClick={handleAddFolder} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-neutral-300 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors"><FolderPlus size={14} /> New Folder</button>
+                    </div>
                   </>
                 )}
               </motion.div>
@@ -1197,54 +1251,7 @@ export const FilesView = React.memo(function FilesView() {
         )}
       </div>
 
-      {/* Floating Action Button (FAB) Menu */}
-      <div className="absolute bottom-6 right-6 md:bottom-8 md:right-8 z-40 flex flex-col items-end gap-3">
-        <AnimatePresence>
-          {isFabMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.8 }}
-              className="flex flex-col gap-3 mb-2"
-            >
-              <button
-                onClick={() => { setIsFabMenuOpen(false); handleAddFolder(); }}
-                disabled={addingFolder}
-                className="flex items-center gap-3 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-neutral-200 text-sm font-medium shadow-lg transition-colors border border-neutral-700/50"
-              >
-                <span>Add Folder</span>
-                <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-                  <FolderPlus size={16} />
-                </div>
-              </button>
-              
-              {activeFolderId && (
-                <button
-                  onClick={handleAddFiles}
-                  disabled={addingFiles || syncing}
-                  className="flex items-center gap-3 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 rounded-xl text-neutral-200 text-sm font-medium shadow-lg transition-colors border border-neutral-700/50"
-                >
-                  <span>Add File(s)</span>
-                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-                    {addingFiles ? <Loader2 size={16} className="animate-spin" /> : <FilePlus size={16} />}
-                  </div>
-                </button>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => setIsFabMenuOpen(!isFabMenuOpen)}
-          className={`w-14 h-14 rounded-full flex items-center justify-center text-white shadow-lg transition-all duration-300 ${
-            isFabMenuOpen ? 'bg-neutral-700 shadow-neutral-900/50 rotate-45' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-500/30'
-          }`}
-        >
-          {addingFolder || addingFiles ? <Loader2 size={24} className="animate-spin" /> : <Plus size={24} />}
-        </motion.button>
-      </div>
 
       {/* File Preview Modal */}
       <AnimatePresence>
@@ -1297,7 +1304,7 @@ export const FilesView = React.memo(function FilesView() {
               </div>
               <p className="text-neutral-400 text-sm mb-6 leading-relaxed">
                 In the next step, your browser will ask for permission to view and edit files in the folder you select. <br /><br />
-                <strong className="text-neutral-200">Please click "Allow" on the native browser prompt</strong> to enable CloudSync to synchronize your files.
+                <strong className="text-neutral-200">Please click &quot;Allow&quot; on the native browser prompt</strong> to enable CloudSync to synchronize your files.
               </p>
               <div className="flex justify-end gap-3">
                 <button
