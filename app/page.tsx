@@ -25,7 +25,7 @@ export default function Page() {
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  
+
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -40,7 +40,7 @@ export default function Page() {
     );
   }, [showToast]);
 
-  const pageVariants = {
+  const pageVariants: any = {
     initial: { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
     exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: 'easeIn' } }
@@ -48,16 +48,16 @@ export default function Page() {
 
   return (
     <div className="flex h-screen bg-neutral-950 text-neutral-100 overflow-hidden w-full relative">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
         onOpenTheme={() => setIsThemeOpen(true)}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
         isMobileOpen={isMobileOpen}
         setIsMobileOpen={setIsMobileOpen}
       />
-      
+
       {/* Mobile Hamburger Menu Button */}
       <button
         onClick={() => setIsMobileOpen(true)}

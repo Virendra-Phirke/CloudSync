@@ -40,7 +40,7 @@ export function ThemeInspector({
 
   useEffect(() => {
     if (!isActive) {
-      setHoveredRect(null);
+      queueMicrotask(() => setHoveredRect(null));
       return;
     }
 

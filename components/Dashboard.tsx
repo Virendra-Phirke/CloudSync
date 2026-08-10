@@ -51,7 +51,7 @@ export const Dashboard = React.memo(function Dashboard() {
         fetchDriveFiles()
       ]);
       setQuota(q);
-      
+
       const sorted = f.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
       setRecentFiles(sorted.slice(0, 5));
     } catch (err) {
@@ -65,11 +65,11 @@ export const Dashboard = React.memo(function Dashboard() {
     setLoadingLocal(true);
     try {
       const infos = await getLocalFolderInfos();
-      
+
       // Initialize entries with loading state
       const entries: FolderWithStats[] = infos.map(f => ({ folder: f, stats: null, loading: true }));
       setFolderEntries(entries);
-      
+
       // Load stats for each folder in parallel
       const promises = infos.map(async (f) => {
         try {
@@ -83,7 +83,7 @@ export const Dashboard = React.memo(function Dashboard() {
           return { folder: f, stats: null, loading: false };
         }
       });
-      
+
       const results = await Promise.all(promises);
       setFolderEntries(results);
     } catch (err) {
@@ -143,8 +143,8 @@ export const Dashboard = React.memo(function Dashboard() {
   const cloudFreeStr = quota ? formatBytes(Math.max(0, parseInt(quota.limit || '0') - parseInt(quota.usage || '0'))) : '0 GB';
   const driveUsedStr = quota ? formatBytes(driveUsed) : '--';
   const trashUsedStr = quota ? formatBytes(trashUsed) : '--';
-  
-  const cloudUsedPercent = quota && parseInt(quota.limit || '0') > 0 
+
+  const cloudUsedPercent = quota && parseInt(quota.limit || '0') > 0
     ? Math.round((parseInt(quota.usage || '0') / parseInt(quota.limit)) * 100)
     : 0;
 
@@ -160,8 +160,8 @@ export const Dashboard = React.memo(function Dashboard() {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.1 } }
   };
-  
-  const itemVariants = {
+
+  const itemVariants: any = {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
   };
@@ -172,17 +172,17 @@ export const Dashboard = React.memo(function Dashboard() {
       <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-950/95 z-10">
         <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Dashboard</h2>
       </header>
-      
-      <motion.div 
+
+      <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
         className="p-4 md:p-8 space-y-8 flex-1"
       >
-        
+
         {/* ── Storage Stats ── */}
         <motion.section variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
+
           {/* Local Folders Storage (Aggregate) */}
           <motion.div whileHover={{ y: -4, transition: { duration: 0.2 } }} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
             <div className="flex items-center justify-between mb-2">
@@ -253,7 +253,7 @@ export const Dashboard = React.memo(function Dashboard() {
                     <p className="text-xl font-semibold text-neutral-200">{folderEntries.length}</p>
                   </div>
                 </div>
-                
+
                 {/* Per-folder breakdown (horizontal scroll) */}
                 <div className="flex gap-2 overflow-x-auto pb-1 mt-1 stagger-children">
                   {folderEntries.map((entry) => (
@@ -336,7 +336,7 @@ export const Dashboard = React.memo(function Dashboard() {
                 </>
               )}
             </div>
-            
+
             {user && !loading && (
               <div className="h-36 w-36 shrink-0">
                 <StorageChart data={driveBreakdownData} />
@@ -349,7 +349,7 @@ export const Dashboard = React.memo(function Dashboard() {
         <motion.section variants={itemVariants}>
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-neutral-100">Recent Drive Activity</h3>
-            <button 
+            <button
               onClick={handleExport}
               disabled={recentFiles.length === 0}
               className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-neutral-300 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -358,36 +358,36 @@ export const Dashboard = React.memo(function Dashboard() {
               Export
             </button>
           </div>
-          
+
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-sm overflow-hidden">
             {!user ? (
-               <div className="p-12 text-center">
-                 <Cloud className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
-                 <p className="text-sm font-medium text-neutral-300">Not connected</p>
-                 <p className="text-xs text-neutral-500 mt-1">Connect your Google account to see recent activity</p>
-               </div>
+              <div className="p-12 text-center">
+                <Cloud className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
+                <p className="text-sm font-medium text-neutral-300">Not connected</p>
+                <p className="text-xs text-neutral-500 mt-1">Connect your Google account to see recent activity</p>
+              </div>
             ) : loading ? (
-            <div className="space-y-1">
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-transparent animate-pulse">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-neutral-800 rounded-xl" />
-                    <div className="space-y-2">
-                      <div className="h-4 w-40 bg-neutral-800 rounded" />
-                      <div className="h-3 w-24 bg-neutral-800/50 rounded" />
+              <div className="space-y-1">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-transparent animate-pulse">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-neutral-800 rounded-xl" />
+                      <div className="space-y-2">
+                        <div className="h-4 w-40 bg-neutral-800 rounded" />
+                        <div className="h-3 w-24 bg-neutral-800/50 rounded" />
+                      </div>
                     </div>
+                    <div className="h-3 w-16 bg-neutral-800/50 rounded" />
                   </div>
-                  <div className="h-3 w-16 bg-neutral-800/50 rounded" />
-                </div>
-              ))}
-            </div>
-          ) : recentFiles.length > 0 ? (
+                ))}
+              </div>
+            ) : recentFiles.length > 0 ? (
               <motion.div variants={containerVariants} initial="hidden" animate="show" className="divide-y divide-neutral-800">
                 {recentFiles.map((item, i) => (
-                  <motion.div 
+                  <motion.div
                     variants={itemVariants}
                     whileHover={{ x: 4, backgroundColor: 'rgba(38, 38, 38, 0.5)' }}
-                    key={i} 
+                    key={i}
                     className="p-4 flex items-center justify-between transition-colors duration-150 cursor-pointer group"
                     onClick={() => {
                       setPreviewFile({

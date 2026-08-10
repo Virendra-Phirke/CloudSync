@@ -140,9 +140,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       try {
         const parsed = JSON.parse(savedTheme);
         // Ensure backward compatibility if they have old theme format
-        setTheme({ ...defaultTheme, ...parsed });
+        queueMicrotask(() => setTheme({ ...defaultTheme, ...parsed }));
       } catch (e) {
-        setTheme(defaultTheme);
+        queueMicrotask(() => setTheme(defaultTheme));
       }
     }
     if (savedPreset) setActivePreset(savedPreset);

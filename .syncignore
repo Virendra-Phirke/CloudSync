@@ -1,0 +1,123 @@
+# ─── Web / React / Next.js ───
+.next/
+out/
+build/
+dist/
+.cache/
+.nuxt/
+.svelte-kit/
+.angular/
+.parcel-cache/
+.turbo/
+.vite/
+.astro/
+
+# ─── Node.js ───
+node_modules/
+.npm/
+.yarn/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.nyc_output/
+coverage/
+.eslintcache
+*.tsbuildinfo
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ─── Java / Gradle ───
+*.class
+*.jar
+*.war
+*.ear
+target/
+out/
+.gradle/
+hs_err_pid*
+
+# ─── Android ───
+.idea/
+*.iml
+local.properties
+.cxx/
+captures/
+*/build/
+*.jks
+*.keystore
+google-services.json
+
+# ─── Docker / DevOps ───
+docker-compose.override.yml
+.env
+.terraform/
+*.tfstate
+*.tfstate.*
+.serverless/
+.aws-sam/
+
+# ─── IDE / Editors ───
+.idea/
+*.iml
+.vscode/*
+!.vscode/settings.json
+.vim/
+.emacs.d/
+
+# ─── Operating System ───
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+*~
+.Trash-*
+
+# ─── Secrets / Credentials ───
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+*.key
+credentials.json
+
+# ─── Database / Local Data ───
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ─── Testing / E2E ───
+test-results/
+playwright-report/
+cypress/videos/
+coverage/
+storybook-static/
+
+# ─── General Temp Files ───
+*.log
+logs/
+*.tmp
+*.swp
+*.bak
+tmp/
+
+# ─── Git / GitHub ───
+.git/
+.github/
+.agents

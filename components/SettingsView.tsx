@@ -248,11 +248,11 @@ export function SettingsView() {
                 <p className="text-sm text-neutral-400">Enable or disable background synchronization</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={settings?.autoSync || false} 
-                  onChange={(e) => updateSetting({ autoSync: e.target.checked })} 
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings?.autoSync || false}
+                  onChange={(e) => updateSetting({ autoSync: e.target.checked })}
                   disabled={!settings}
                 />
                 <div className="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -265,10 +265,10 @@ export function SettingsView() {
                 <p className="text-sm text-neutral-400">Automatically start CloudSync when you log in</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer" 
-                  checked={settings?.launchOnStartup || false} 
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={settings?.launchOnStartup || false}
                   onChange={(e) => updateSetting({ launchOnStartup: e.target.checked })}
                   disabled={!settings}
                 />

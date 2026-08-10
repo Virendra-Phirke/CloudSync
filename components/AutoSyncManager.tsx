@@ -16,10 +16,10 @@ export function AutoSyncManager() {
   };
 
   useEffect(() => {
-    loadSettings();
+    getAppSettings().then(setSettings);
 
     const handleSettingsChanged = () => {
-      loadSettings();
+      getAppSettings().then(setSettings);
     };
 
     window.addEventListener('omnisync-settings-changed', handleSettingsChanged);

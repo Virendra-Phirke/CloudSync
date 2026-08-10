@@ -1,6 +1,7 @@
 "use client";
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { X, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -34,29 +35,42 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`flex items-center gap-3 p-4 rounded-xl shadow-lg border transition-all ${
-              toast.type === 'error'
-                ? 'bg-red-500/10 border-red-500/20 text-red-100'
-                : toast.type === 'success'
-                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-100'
-                : 'bg-neutral-800/80 border-neutral-700 text-neutral-100'
-            }`}
-          >
-            {toast.type === 'error' && <AlertCircle className="text-red-400" size={20} />}
-            {toast.type === 'success' && <CheckCircle className="text-emerald-400" size={20} />}
-            <span className="text-sm font-medium">{toast.message}</span>
-            <button
-              onClick={() => removeToast(toast.id)}
-              className="ml-auto text-neutral-400 hover:text-neutral-200"
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map((toast) => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+              className={`pointer-events-auto flex w-80 items-start gap-3 p-4 rounded-xl shadow-xl border backdrop-blur-md ${
+                toast.type === 'error'
+                  ? 'bg-destructive/10 border-destructive/20 text-destructive'
+                  : toast.type === 'success'
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-500'
+                  : 'bg-card/80 border-border text-card-foreground'
+              }`}
             >
-              <X size={16} />
-            </button>
-          </div>
-        ))}
+              <div className="shrink-0 mt-0.5">
+                {toast.type === 'error' && <AlertCircle size={20} />}
+                {toast.type === 'success' && <CheckCircle size={20} />}
+                {toast.type === 'info' && <Info size={20} className="text-primary" />}
+              </div>
+              <div className="flex-1 flex flex-col gap-1">
+                <span className="text-sm font-semibold">{
+                  toast.type === 'error' ? 'Error' : toast.type === 'success' ? 'Success' : 'Information'
+                }</span>
+                <span className="text-sm opacity-90">{toast.message}</span>
+              </div>
+              <button
+                onClick={() => removeToast(toast.id)}
+                className="shrink-0 rounded-md p-1 opacity-50 hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
       </div>
     </ToastContext.Provider>
   );
