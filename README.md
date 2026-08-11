@@ -9,18 +9,19 @@
   [![React](https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react)](https://react.dev/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
   [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
+  [![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 </div>
 
 <br />
 
-CloudSync seamlessly bridges the gap between your local file system and cloud storage (Google Drive) **directly from the browser**. No desktop client installation required. By utilizing the modern Web File System Access API, it brings native-like sync capabilities right to your web browser.
+CloudSync seamlessly bridges the gap between your local file system and cloud storage directly from the browser. No desktop client installation required. By utilizing the modern Web File System Access API, it brings native-like sync capabilities right to your web browser.
 
 ---
 
 ## 🎯 Why CloudSync?
 
 - **Zero Installation**: Sync your files without downloading hefty desktop applications.
-- **Privacy First**: Files are synchronized directly between your local machine and your Google Drive. No intermediary servers hold your files.
+- **Privacy First**: Files are synchronized directly between your local machine and cloud storage. No intermediary servers hold your files.
 - **Granular Control**: Manage conflicts manually or use `.syncignore` to ensure only the right files are synced.
 
 ---
@@ -35,23 +36,27 @@ CloudSync seamlessly bridges the gap between your local file system and cloud st
 - **📊 Storage Analytics**: Beautiful, interactive charts visualizing your storage usage and file distributions.
 - **🔋 Wake Lock Management**: Utilizes the Screen Wake Lock API to prevent the device from going to sleep during prolonged synchronization tasks.
 - **⚡ High-Performance Virtualization**: Smoothly renders massive directories containing thousands of files using virtualized lists.
+- **🧠 AI Integration**: Integrates Google GenAI capabilities for smart data processing.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Category | Technology | Description |
-| :--- | :--- | :--- |
-| **Frontend** | [Next.js](https://nextjs.org/) & [React 19](https://react.dev/) | Core application framework and UI library. |
-| **Language** | [TypeScript](https://www.typescriptlang.org/) | Strongly typed JavaScript. |
-| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) & [Framer Motion](https://motion.dev/) | Utility-first styling and fluid animations. |
-| **Icons** | [Lucide React](https://lucide.dev/) | Clean and consistent iconography. |
-| **Local Data** | IndexedDB (`idb-keyval`) | Efficient metadata and state persistence. |
-| **Auth** | Next.js API Routes | Custom, secure OAuth 2.0 flow for Google integration. |
-| **Utilities** | `@tanstack/react-virtual` | Windowing for large lists. |
-| | `spark-md5` | Fast client-side file hashing for change detection. |
-| | `pdfjs-dist` & `mammoth` | Document preview processing. |
-| | `recharts` | Data visualization. |
+### Frontend & Core
+- **Framework**: [Next.js](https://nextjs.org/) & [React 19](https://react.dev/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) & [Framer Motion](https://motion.dev/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+
+### Backend & Data
+- **Backend Services**: Next.js API Routes, [Firebase](https://firebase.google.com/)
+- **AI / Machine Learning**: `@google/genai`
+- **Local Data**: IndexedDB (`idb-keyval`) for efficient metadata and state persistence
+
+### Utilities
+- **Virtualization**: `@tanstack/react-virtual` for windowing large lists
+- **File Processing**: `spark-md5` (fast client-side file hashing), `pdfjs-dist` & `mammoth` (document previews)
+- **Data Visualization**: `recharts`
 
 ---
 
@@ -76,9 +81,8 @@ graph TD
     end
 
     subgraph Cloud Environment
-        SyncEngine <--> |Google Drive API| CloudStorage[(Google Drive)]
+        SyncEngine <--> |Google Drive / Firebase| CloudStorage[(Cloud Storage)]
         UI <--> |OAuth 2.0| NextAuthAPI[Next.js Auth APIs]
-        NextAuthAPI <--> |Token Exchange| GoogleAuth[Google OAuth Servers]
     end
 ```
 
@@ -113,8 +117,9 @@ sequenceDiagram
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js (v20+ recommended)
+- [Node.js](https://nodejs.org/) (v20+ recommended)
 - A Google Cloud Console project (for Drive API and OAuth 2.0 credentials)
+- Firebase Project (for Firebase services)
 
 ### Installation
 
@@ -130,13 +135,16 @@ sequenceDiagram
    ```
 
 3. **Environment Setup:**
-   Create a `.env.local` file in the root directory. You will need to configure your Google OAuth credentials:
+   Create a `.env.local` file in the root directory and configure your credentials:
    ```env
    # Google OAuth Configuration
    GOOGLE_CLIENT_ID="your_google_client_id_here"
    GOOGLE_CLIENT_SECRET="your_google_client_secret_here"
    APP_URL="http://localhost:3000"
    GOOGLE_REDIRECT_URI="http://localhost:3000/api/auth/callback/google"
+   
+   # Firebase Configuration
+   # (Add your Firebase env variables here)
    ```
 
 4. **Run the development server:**
@@ -144,13 +152,13 @@ sequenceDiagram
    npm run dev
    ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+5. **Open Application**: Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
 ## 💡 Usage Guide
 
-1. **Authenticate**: Log in with your Google account to grant CloudSync access to your Google Drive.
+1. **Authenticate**: Log in with your account to grant CloudSync access to your cloud storage.
 2. **Select Local Folder**: Use the UI to pick a local folder on your machine that you want to sync.
 3. **Configure `.syncignore`**: Add a `.syncignore` file in your local folder to ignore specific files/directories (e.g., `node_modules/`, `.git/`).
 4. **Sync**: Click the "Sync" button. CloudSync will analyze differences, prompt you to resolve any conflicts, and keep your files up-to-date!
@@ -161,17 +169,10 @@ sequenceDiagram
 
 ```text
 ├── app/                  # Next.js App Router and API routes
-│   └── api/auth/         # Custom Google OAuth endpoints
 ├── components/           # Reusable React components (UI, Modals, Views)
-│   ├── FilesView.tsx     # Main file browser interface
-│   ├── SyncContext.tsx   # Global sync state management
-│   └── ...
+├── hooks/                # Custom React hooks (e.g., useMockAnalytics.ts)
 ├── lib/                  # Core business logic and utilities
-│   ├── syncBiDirectional.ts # Sync algorithm & conflict handling
-│   ├── localFolder.ts    # File System Access API wrappers
-│   ├── drive.ts          # Google Drive integrations
-│   ├── oauth.ts          # Authentication logic
-│   └── ...
-├── docs/                 # Additional documentation (TESTING.md, etc.)
-└── public/               # Static assets
+├── modules/              # Feature modules (e.g., analytics)
+├── public/               # Static assets
+└── scripts/              # Build and utility scripts
 ```
