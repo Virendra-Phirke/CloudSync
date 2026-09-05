@@ -20,6 +20,7 @@ import {
   PaginationNext,
   PaginationEllipsis,
 } from '@/components/ui/pagination';
+import { CountingNumber } from '@/components/animate-ui/primitives/texts/counting-number';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -31,6 +32,18 @@ function formatBytes(bytes: number, decimals = 2) {
   const factor = Math.pow(10, dm);
   const truncated = Math.floor(val * factor) / factor;
   return `${truncated} ${sizes[i]}`;
+}
+
+function splitBytes(bytes: number, decimals = 1) {
+  if (!+bytes) return { value: 0, unit: 'Bytes', decimals: 0 };
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(sizes.length - 1, Math.floor(Math.log(bytes) / Math.log(k)));
+  const val = bytes / Math.pow(k, i);
+  const dm = val >= 100 || val % 1 === 0 ? 0 : decimals;
+  const factor = Math.pow(10, dm);
+  const truncated = Math.round(val * factor) / factor;
+  return { value: truncated, unit: sizes[i], decimals: dm };
 }
 
 interface FolderWithStats {
@@ -315,15 +328,23 @@ export const Dashboard = React.memo(function Dashboard() {
                 <HardDrive size={16} />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight flex items-baseline">
               {loadingLocal ? (
                 <div className="h-8 w-24 bg-secondary/60 rounded animate-pulse" />
               ) : (
-                formatBytes(aggregateStats.totalSize)
+                (() => {
+                  const s = splitBytes(aggregateStats.totalSize);
+                  return (
+                    <>
+                      <CountingNumber number={s.value} decimalPlaces={s.decimals} inView />
+                      <span className="text-base sm:text-lg font-medium text-muted-foreground ml-1.5">{s.unit}</span>
+                    </>
+                  );
+                })()
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 truncate">
-              Across {folderEntries.length} folder{folderEntries.length !== 1 ? 's' : ''}
+              Across <CountingNumber number={folderEntries.length} inView /> folder{folderEntries.length !== 1 ? 's' : ''}
             </p>
           </motion.div>
 
@@ -335,18 +356,30 @@ export const Dashboard = React.memo(function Dashboard() {
                 <Cloud size={16} />
               </div>
             </div>
-            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight flex items-baseline">
               {!user ? (
                 '--'
               ) : loading ? (
                 <div className="h-8 w-24 bg-secondary/60 rounded animate-pulse" />
               ) : (
-                cloudUsedStr
+                (() => {
+                  const s = splitBytes(quota ? parseInt(quota.usage || '0') : 0);
+                  return (
+                    <>
+                      <CountingNumber number={s.value} decimalPlaces={s.decimals} inView />
+                      <span className="text-base sm:text-lg font-medium text-muted-foreground ml-1.5">{s.unit}</span>
+                    </>
+                  );
+                })()
               )}
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
               <span>{user ? `of ${cloudTotalStr}` : 'Not connected'}</span>
-              {user && <span className="font-semibold text-foreground">{cloudUsedPercent}%</span>}
+              {user && (
+                <span className="font-semibold text-foreground">
+                  <CountingNumber number={cloudUsedPercent} inView />%
+                </span>
+              )}
             </div>
           </motion.div>
 
@@ -362,11 +395,11 @@ export const Dashboard = React.memo(function Dashboard() {
               {loadingLocal ? (
                 <div className="h-8 w-20 bg-secondary/60 rounded animate-pulse" />
               ) : (
-                aggregateStats.fileCount
+                <CountingNumber number={aggregateStats.fileCount} inView />
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1 truncate">
-              in {aggregateStats.dirCount} subdirectories
+              in <CountingNumber number={aggregateStats.dirCount} inView /> subdirectories
             </p>
           </motion.div>
 
@@ -443,15 +476,28 @@ export const Dashboard = React.memo(function Dashboard() {
                   <div className="bento-subcard grid grid-cols-3 gap-3 text-center">
                     <div>
                       <p className="text-[11px] text-muted-foreground uppercase font-semibold">Total Size</p>
-                      <p className="text-base font-bold text-foreground mt-0.5">{formatBytes(aggregateStats.totalSize)}</p>
+                      <p className="text-base font-bold text-foreground mt-0.5">
+                        {(() => {
+                          const s = splitBytes(aggregateStats.totalSize);
+                          return (
+                            <>
+                              <CountingNumber number={s.value} decimalPlaces={s.decimals} inView /> {s.unit}
+                            </>
+                          );
+                        })()}
+                      </p>
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground uppercase font-semibold">Files</p>
-                      <p className="text-base font-bold text-foreground mt-0.5">{aggregateStats.fileCount}</p>
+                      <p className="text-base font-bold text-foreground mt-0.5">
+                        <CountingNumber number={aggregateStats.fileCount} inView />
+                      </p>
                     </div>
                     <div>
                       <p className="text-[11px] text-muted-foreground uppercase font-semibold">Sources</p>
-                      <p className="text-base font-bold text-foreground mt-0.5">{folderEntries.length}</p>
+                      <p className="text-base font-bold text-foreground mt-0.5">
+                        <CountingNumber number={folderEntries.length} inView />
+                      </p>
                     </div>
                   </div>
 
@@ -768,7 +814,7 @@ export const Dashboard = React.memo(function Dashboard() {
                   {/* ── Shadcn Pagination Bar ── */}
                   <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
                     <div className="text-[11px] sm:text-xs">
-                      Showing <span className="font-semibold text-foreground">{(effectiveCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span>–<span className="font-semibold text-foreground">{Math.min(effectiveCurrentPage * ITEMS_PER_PAGE, filteredRecentFiles.length)}</span> of <span className="font-semibold text-foreground">{filteredRecentFiles.length}</span> items
+                      Showing <span className="font-semibold text-foreground">{(effectiveCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span>–<span className="font-semibold text-foreground">{Math.min(effectiveCurrentPage * ITEMS_PER_PAGE, filteredRecentFiles.length)}</span> of <span className="font-semibold text-foreground"><CountingNumber number={filteredRecentFiles.length} inView /></span> items
                     </div>
 
                     {totalPages > 1 && (
