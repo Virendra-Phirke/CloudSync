@@ -1,6 +1,6 @@
 'use client';
 import { Folder, HardDrive, Cloud, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen, RefreshCw, Plus, ArrowUpRight, Zap, ShieldCheck } from 'lucide-react';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
 
@@ -11,6 +11,15 @@ import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfo
 import { FilePreviewModal } from './FilePreviewModal';
 import { useSync } from './SyncContext';
 import { useToast } from './ToastContext';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from '@/components/ui/pagination';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -41,8 +50,15 @@ export const Dashboard = React.memo(function Dashboard() {
   const [loadingLocal, setLoadingLocal] = useState(true);
   const [addingFolder, setAddingFolder] = useState(false);
 
-  // Search filter for recent files
+  // Search filter & pagination for recent files
   const [activitySearch, setActivitySearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
+  // Reset to page 1 whenever user searches
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activitySearch]);
 
   // File Preview Modal state
   const [previewFile, setPreviewFile] = useState<any>(null);
@@ -60,7 +76,7 @@ export const Dashboard = React.memo(function Dashboard() {
       setQuota(q);
 
       const sorted = f.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
-      setRecentFiles(sorted.slice(0, 10));
+      setRecentFiles(sorted.slice(0, 50));
     } catch (err) {
       console.error(err);
     } finally {
@@ -197,6 +213,30 @@ export const Dashboard = React.memo(function Dashboard() {
   const filteredRecentFiles = recentFiles.filter(f =>
     f.name.toLowerCase().includes(activitySearch.toLowerCase())
   );
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecentFiles.length / ITEMS_PER_PAGE));
+  const effectiveCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedRecentFiles = useMemo(() => {
+    const startIndex = (effectiveCurrentPage - 1) * ITEMS_PER_PAGE;
+    return filteredRecentFiles.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredRecentFiles, effectiveCurrentPage]);
+
+  const getPageNumbers = () => {
+    const pages: (number | 'ellipsis')[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (effectiveCurrentPage > 3) pages.push('ellipsis');
+      const start = Math.max(2, effectiveCurrentPage - 1);
+      const end = Math.min(totalPages - 1, effectiveCurrentPage + 1);
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (effectiveCurrentPage < totalPages - 2) pages.push('ellipsis');
+      pages.push(totalPages);
+    }
+    return pages;
+  };
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -677,51 +717,98 @@ export const Dashboard = React.memo(function Dashboard() {
                   ))}
                 </div>
               ) : filteredRecentFiles.length > 0 ? (
-                <div className="divide-y divide-border/60 bento-subcard !p-0 overflow-hidden">
-                  {filteredRecentFiles.map((item, i) => (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setPreviewFile({
-                          id: item.id,
-                          name: item.name,
-                          path: item.name,
-                          mimeType: item.mimeType,
-                          size: formatBytes(parseInt(item.size || '0')),
-                          sizeBytes: parseInt(item.size || '0'),
-                          date: new Date(item.modifiedTime).toLocaleDateString(),
-                          status: 'Synced',
-                          driveId: item.id,
-                          isDirectory: item.mimeType === 'application/vnd.google-apps.folder',
-                          thumbnailLink: item.thumbnailLink,
-                          iconLink: item.iconLink,
-                        });
-                      }}
-                      className="p-3 sm:px-4 flex items-center justify-between gap-3 hover:bg-secondary/70 transition-colors duration-150 cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
-                          {item.iconLink ? (
-                            <img src={item.iconLink} alt="Icon" className="w-4 h-4 object-contain group-hover:scale-110 transition-transform" />
-                          ) : (
-                            <FileIcon size={16} />
-                          )}
+                <div className="space-y-4">
+                  <div className="divide-y divide-border/60 bento-subcard !p-0 overflow-hidden">
+                    {paginatedRecentFiles.map((item, i) => (
+                      <div
+                        key={item.id || i}
+                        onClick={() => {
+                          setPreviewFile({
+                            id: item.id,
+                            name: item.name,
+                            path: item.name,
+                            mimeType: item.mimeType,
+                            size: formatBytes(parseInt(item.size || '0')),
+                            sizeBytes: parseInt(item.size || '0'),
+                            date: new Date(item.modifiedTime).toLocaleDateString(),
+                            status: 'Synced',
+                            driveId: item.id,
+                            isDirectory: item.mimeType === 'application/vnd.google-apps.folder',
+                            thumbnailLink: item.thumbnailLink,
+                            iconLink: item.iconLink,
+                          });
+                        }}
+                        className="p-3 sm:px-4 flex items-center justify-between gap-3 hover:bg-secondary/70 transition-colors duration-150 cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+                            {item.iconLink ? (
+                              <img src={item.iconLink} alt="Icon" className="w-4 h-4 object-contain group-hover:scale-110 transition-transform" />
+                            ) : (
+                              <FileIcon size={16} />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-foreground text-xs sm:text-sm truncate group-hover:text-primary transition-colors" title={item.name}>
+                              {item.name}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <CheckCircle2 size={11} className="text-emerald-400" />
+                              Synced to Cloud
+                            </p>
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-foreground text-xs sm:text-sm truncate group-hover:text-primary transition-colors" title={item.name}>
-                            {item.name}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
-                            <CheckCircle2 size={11} className="text-emerald-400" />
-                            Synced to Cloud
-                          </p>
-                        </div>
+                        <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+                          {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
                       </div>
-                      <span className="text-[11px] text-muted-foreground font-medium shrink-0">
-                        {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                    ))}
+                  </div>
+
+                  {/* ── Shadcn Pagination Bar ── */}
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+                    <div className="text-[11px] sm:text-xs">
+                      Showing <span className="font-semibold text-foreground">{(effectiveCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span>–<span className="font-semibold text-foreground">{Math.min(effectiveCurrentPage * ITEMS_PER_PAGE, filteredRecentFiles.length)}</span> of <span className="font-semibold text-foreground">{filteredRecentFiles.length}</span> items
                     </div>
-                  ))}
+
+                    {totalPages > 1 && (
+                      <Pagination className="mx-0 w-auto justify-end">
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                              disabled={effectiveCurrentPage <= 1}
+                              className={effectiveCurrentPage <= 1 ? 'pointer-events-none opacity-40' : 'cursor-pointer'}
+                            />
+                          </PaginationItem>
+
+                          {getPageNumbers().map((page, idx) => (
+                            <PaginationItem key={idx}>
+                              {page === 'ellipsis' ? (
+                                <PaginationEllipsis />
+                              ) : (
+                                <PaginationLink
+                                  isActive={page === effectiveCurrentPage}
+                                  onClick={() => setCurrentPage(page)}
+                                  className="cursor-pointer"
+                                >
+                                  {page}
+                                </PaginationLink>
+                              )}
+                            </PaginationItem>
+                          ))}
+
+                          <PaginationItem>
+                            <PaginationNext
+                              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                              disabled={effectiveCurrentPage >= totalPages}
+                              className={effectiveCurrentPage >= totalPages ? 'pointer-events-none opacity-40' : 'cursor-pointer'}
+                            />
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="p-8 text-center bento-subcard">
