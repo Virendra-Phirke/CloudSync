@@ -3,7 +3,8 @@ import {
   Search, Folder, MoreVertical, UploadCloud, 
   X, Download, CheckCircle, Check, HardDrive,
   RefreshCw, FolderOpen, CloudOff, Loader2,
-  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown, AlertTriangle, FilePlus, EyeOff, FolderTree
+  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown, AlertTriangle, FilePlus, EyeOff, FolderTree,
+  Eye, ArrowUpDown, ChevronUp, CheckCircle2
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -41,6 +42,7 @@ type FileItem = {
   size: string;
   sizeBytes: number;
   date: string;
+  modifiedTime?: number;
   path: string;
   driveId?: string;
   isDirectory: boolean;
@@ -77,22 +79,26 @@ const VirtualizedListBody = React.memo(({
   statusBadge,
   handleRowClick,
   handleSelectFile,
-  setShareFiles
+  setShareFiles,
+  onPreviewFile,
+  onDeleteFile,
 }: {
   files: FileItem[],
   selectedIds: Set<string>,
   searchQuery: string,
-  statusBadge: Record<SyncStatus, { cls: string; icon: React.ReactNode; label: string }>,
+  statusBadge: Record<SyncStatus, { cls: string; dot: string; icon: React.ReactNode; label: string }>,
   handleRowClick: (file: FileItem) => void,
   handleSelectFile: (e: React.MouseEvent, id: string) => void,
-  setShareFiles: (files: FileItem[]) => void
+  setShareFiles: (files: FileItem[]) => void,
+  onPreviewFile?: (file: FileItem) => void,
+  onDeleteFile?: (file: FileItem) => void,
 }) => {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({
     count: files.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 44,
+    estimateSize: () => 52,
     overscan: 10,
   });
 
@@ -110,68 +116,99 @@ const VirtualizedListBody = React.memo(({
           const typeInfo = getFileTypeInfo(file.name, file.mimeType, file.isDirectory);
           const TypeIcon = typeInfo.icon;
           const badge = statusBadge[file.status];
+          const isSelected = selectedIds.has(file.id);
           
           return (
             <div
               key={virtualRow.key}
               onClick={() => handleRowClick(file)}
-              className={`absolute top-0 left-0 w-full flex items-center border-b border-border/60 hover:bg-secondary/50 transition-colors duration-150 group cursor-pointer ${
-                selectedIds.has(file.id) ? 'bg-primary/10' : ''
+              className={`absolute top-0 left-0 w-full flex items-center border-b border-border/50 hover:bg-secondary/40 transition-colors duration-150 group cursor-pointer select-none ${
+                isSelected ? 'bg-primary/10 border-primary/30' : ''
               }`}
               style={{
                 height: `${virtualRow.size}px`,
                 transform: `translateY(${virtualRow.start}px)`,
               }}
             >
-              <div className="px-5 py-3.5 w-14 shrink-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+              {/* Checkbox */}
+              <div className="w-12 px-3 shrink-0 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 <div
                   onClick={(e) => handleSelectFile(e, file.id)}
-                  className={`w-4 h-4 rounded flex items-center justify-center transition-colors border cursor-pointer ${
-                    selectedIds.has(file.id) ? 'bg-blue-500 border-blue-500 text-white' : 'bg-neutral-800 border-neutral-600 text-transparent hover:border-neutral-400'
+                  className={`w-4 h-4 rounded-md flex items-center justify-center transition-all border cursor-pointer ${
+                    isSelected
+                      ? 'bg-primary border-primary text-primary-foreground shadow-xs'
+                      : 'border-border/80 bg-secondary/40 text-transparent hover:border-primary/60 hover:bg-secondary/80'
                   }`}
                 >
-                  <Check size={12} strokeWidth={3} className={`transition-opacity duration-200 ${selectedIds.has(file.id) ? 'opacity-100' : 'opacity-0'}`} />
+                  <Check size={11} strokeWidth={3} className={`transition-opacity duration-150 ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
                 </div>
               </div>
-              <div className="px-5 py-3.5 flex-1 min-w-0">
-                <div className="flex items-center gap-3">
-                  <div className={`p-1.5 rounded-lg ${typeInfo.bg} shrink-0`}>
-                    <TypeIcon size={16} className={typeInfo.color} />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="font-medium text-neutral-200 text-sm truncate block max-w-[220px]" title={file.name}>
-                      {file.name}
-                    </span>
-                    {searchQuery && file.path !== file.name && (
-                      <div className="text-[11px] text-neutral-500 mt-0.5 truncate max-w-[200px]" title={file.path}>
-                        {file.path}
-                      </div>
-                    )}
-                  </div>
+
+              {/* Name & Type Icon */}
+              <div className="flex-1 min-w-[200px] px-3 flex items-center gap-3 overflow-hidden">
+                <div className={`p-2 rounded-xl ${typeInfo.bg} ${typeInfo.borderColor} border shrink-0`}>
+                  <TypeIcon size={16} className={typeInfo.color} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium text-foreground text-sm truncate block group-hover:text-primary transition-colors" title={file.name}>
+                    {file.name}
+                  </span>
+                  {searchQuery && file.path !== file.name && (
+                    <div className="text-[11px] text-muted-foreground mt-0.5 truncate" title={file.path}>
+                      {file.path}
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="px-5 py-3.5 w-28 shrink-0">
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border ${badge.cls}`}>
-                  {badge.icon} {badge.label}
+
+              {/* Status Badge */}
+              <div className="w-32 px-3 shrink-0">
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ${badge.cls}`}>
+                  <span className={`size-1.5 rounded-full ${badge.dot}`} />
+                  <span>{badge.label}</span>
                 </span>
               </div>
-              <div className="px-5 py-3.5 w-24 shrink-0 text-sm text-neutral-400 hidden sm:block truncate">{file.size}</div>
-              <div className="px-5 py-3.5 w-28 shrink-0 text-sm text-neutral-400 hidden md:block truncate">{file.date}</div>
-              <div className="px-5 py-3.5 w-16 shrink-0 text-right" onClick={(e) => e.stopPropagation()}>
-                {!file.isDirectory && file.driveId ? (
+
+              {/* Size */}
+              <div className="w-28 px-3 shrink-0 font-mono text-xs text-muted-foreground hidden sm:block truncate">
+                {file.size}
+              </div>
+
+              {/* Modified Date */}
+              <div className="w-36 px-3 shrink-0 text-xs text-muted-foreground hidden md:block whitespace-nowrap">
+                {file.date}
+              </div>
+
+              {/* Actions on hover */}
+              <div className="w-28 px-4 shrink-0 flex items-center justify-end gap-1 text-right" onClick={(e) => e.stopPropagation()}>
+                {!file.isDirectory && (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShareFiles([file]);
-                    }}
-                    className="text-neutral-500 hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-all"
+                    type="button"
+                    onClick={() => onPreviewFile?.(file)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                    title="Preview File"
+                  >
+                    <Eye size={15} />
+                  </button>
+                )}
+                {!file.isDirectory && file.driveId && (
+                  <button
+                    type="button"
+                    onClick={() => setShareFiles([file])}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
                     title="Share File"
                   >
-                    <Share2 size={16} />
+                    <Share2 size={15} />
                   </button>
-                ) : (
-                  <div className="w-7 h-7 inline-block"></div>
                 )}
+                <button
+                  type="button"
+                  onClick={() => onDeleteFile?.(file)}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                  title="Delete File"
+                >
+                  <Trash2 size={15} />
+                </button>
               </div>
             </div>
           );
@@ -298,6 +335,7 @@ export const FilesView = React.memo(function FilesView() {
         sizeBytes: lf.size,
         path: lf.path,
         date: formatDate(lf.lastModified),
+        modifiedTime: lf.lastModified,
         mimeType: lf.mimeType,
         handle: lf.handle,
       }));
@@ -573,6 +611,43 @@ export const FilesView = React.memo(function FilesView() {
     return files;
   }, [files, searchQuery]);
 
+  // Column Sorting State
+  type SortField = 'name' | 'status' | 'size' | 'modified';
+  type SortOrder = 'asc' | 'desc';
+  const [sortField, setSortField] = useState<SortField>('name');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
+
+  const toggleSort = useCallback((field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  }, [sortField]);
+
+  const sortedFiles = useMemo(() => {
+    return [...filteredFiles].sort((a, b) => {
+      // Folders always appear first
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1;
+      }
+      let cmp = 0;
+      if (sortField === 'name') {
+        cmp = a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+      } else if (sortField === 'size') {
+        cmp = (a.sizeBytes || 0) - (b.sizeBytes || 0);
+      } else if (sortField === 'modified') {
+        const timeA = a.modifiedTime ?? (a.date ? new Date(a.date).getTime() : 0);
+        const timeB = b.modifiedTime ?? (b.date ? new Date(b.date).getTime() : 0);
+        cmp = timeA - timeB;
+      } else if (sortField === 'status') {
+        cmp = a.status.localeCompare(b.status);
+      }
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredFiles, sortField, sortOrder]);
+
   const handleSelectAll = useCallback(() => {
     const allSelected = filteredFiles.length > 0 && selectedIds.size === filteredFiles.length;
     setSelectedIds(allSelected ? new Set() : new Set(filteredFiles.map((f) => f.id)));
@@ -638,11 +713,11 @@ export const FilesView = React.memo(function FilesView() {
   }, [filesToDelete, showToast]);
 
   // ── Status badge config ─────────────────────────────────────────────────────
-  const statusBadge: Record<SyncStatus, { cls: string; icon: React.ReactNode; label: string }> = {
-    Synced:      { cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: <CheckCircle size={12} />, label: 'Synced' },
-    Syncing:     { cls: 'bg-blue-500/10 text-blue-400 border-blue-500/20',         icon: <UploadCloud size={12} className="animate-pulse" />, label: 'Syncing' },
-    'Local Only':{ cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20',       icon: <HardDrive size={12} />, label: 'Local Only' },
-    'Not Synced':{ cls: 'bg-neutral-700/50 text-neutral-400 border-neutral-700',    icon: <CloudOff size={12} />, label: 'Not Synced' },
+  const statusBadge: Record<SyncStatus, { cls: string; dot: string; icon: React.ReactNode; label: string }> = {
+    Synced:      { cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400', icon: <CheckCircle2 size={12} />, label: 'Synced' },
+    Syncing:     { cls: 'bg-blue-500/10 text-blue-400 border-blue-500/30',         dot: 'bg-blue-400 animate-pulse', icon: <UploadCloud size={12} className="animate-pulse" />, label: 'Syncing' },
+    'Local Only':{ cls: 'bg-amber-500/10 text-amber-400 border-amber-500/30',       dot: 'bg-amber-400', icon: <HardDrive size={12} />, label: 'Local Only' },
+    'Not Synced':{ cls: 'bg-secondary/70 text-muted-foreground border-border/80',   dot: 'bg-muted-foreground', icon: <CloudOff size={12} />, label: 'Not Synced' },
   };
 
   const noFolders = folders.length === 0;
@@ -1083,23 +1158,28 @@ export const FilesView = React.memo(function FilesView() {
         ) : (
           <>
             {/* File count bar */}
-            <div className="flex items-center justify-between mb-4 animate-fadeInDown">
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-neutral-500">
-                  {fileCounts.total} items
-                  {fileCounts.folderCount > 0 && <> · {fileCounts.folderCount} folder{fileCounts.folderCount !== 1 ? 's' : ''}</>}
-                  {fileCounts.fileCount > 0 && <> · {fileCounts.fileCount} file{fileCounts.fileCount !== 1 ? 's' : ''}</>}
+            <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-foreground">
+                  {fileCounts.total} {fileCounts.total === 1 ? 'item' : 'items'}
                 </span>
+                {fileCounts.folderCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{fileCounts.folderCount} folder{fileCounts.folderCount !== 1 ? 's' : ''}</span>
+                  </>
+                )}
+                {fileCounts.fileCount > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{fileCounts.fileCount} file{fileCounts.fileCount !== 1 ? 's' : ''}</span>
+                  </>
+                )}
               </div>
-              {viewMode === 'list' && filteredFiles.length > 0 && (
-                <div className="flex items-center gap-2 text-xs text-neutral-500 cursor-pointer" onClick={handleSelectAll}>
-                  <div className={`w-3.5 h-3.5 rounded flex items-center justify-center transition-colors border ${
-                    filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'bg-blue-500 border-blue-500 text-white' : 'bg-neutral-800 border-neutral-600 text-transparent hover:border-neutral-400'
-                  }`}>
-                    <Check size={10} strokeWidth={3} className={`transition-opacity duration-200 ${filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'opacity-100' : 'opacity-0'}`} />
-                  </div>
-                  Select all
-                </div>
+              {selectedIds.size > 0 && (
+                <span className="text-primary font-medium">
+                  {selectedIds.size} of {filteredFiles.length} selected
+                </span>
               )}
             </div>
 
@@ -1279,36 +1359,100 @@ export const FilesView = React.memo(function FilesView() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -10 }}
-                  className="bento-block !p-0 overflow-hidden shadow-sm"
+                  className="bento-block !p-0 overflow-hidden shadow-xs border border-border/80"
                 >
-                  {/* Header row */}
-                  <div className="flex items-center border-b border-border/70 bg-secondary/50 min-w-[600px]">
-                    <div className="px-5 py-3 w-14 shrink-0 flex items-center">
-                      <div
-                        onClick={handleSelectAll}
-                        className={`w-4 h-4 rounded-md flex items-center justify-center transition-colors border cursor-pointer ${
-                          filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'bg-primary border-primary text-primary-foreground' : 'bg-secondary border-border text-transparent hover:border-muted-foreground'
-                        }`}
-                      >
-                        <Check size={12} strokeWidth={3} className={`transition-opacity duration-200 ${filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'opacity-100' : 'opacity-0'}`} />
+                  <div className="overflow-x-auto">
+                    <div className="min-w-[720px]">
+                      {/* Header row */}
+                      <div className="flex items-center border-b border-border/70 bg-secondary/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider select-none">
+                        <div className="w-12 px-3 shrink-0 flex items-center justify-center py-3">
+                          <div
+                            onClick={handleSelectAll}
+                            className={`w-4 h-4 rounded-md flex items-center justify-center transition-all border cursor-pointer ${
+                              filteredFiles.length > 0 && selectedIds.size === filteredFiles.length
+                                ? 'bg-primary border-primary text-primary-foreground shadow-xs'
+                                : 'border-border/80 bg-secondary/50 text-transparent hover:border-primary/60'
+                            }`}
+                            title="Select all"
+                          >
+                            <Check size={11} strokeWidth={3} className={`transition-opacity duration-150 ${filteredFiles.length > 0 && selectedIds.size === filteredFiles.length ? 'opacity-100' : 'opacity-0'}`} />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-[200px] px-3 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort('name')}
+                            className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                          >
+                            <span>Name</span>
+                            {sortField === 'name' ? (
+                              sortOrder === 'asc' ? <ChevronUp size={13} className="text-primary" /> : <ChevronDown size={13} className="text-primary" />
+                            ) : (
+                              <ArrowUpDown size={12} className="opacity-40" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="w-32 px-3 py-3">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort('status')}
+                            className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                          >
+                            <span>Status</span>
+                            {sortField === 'status' ? (
+                              sortOrder === 'asc' ? <ChevronUp size={13} className="text-primary" /> : <ChevronDown size={13} className="text-primary" />
+                            ) : (
+                              <ArrowUpDown size={12} className="opacity-40" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="w-28 px-3 py-3 hidden sm:block">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort('size')}
+                            className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                          >
+                            <span>Size</span>
+                            {sortField === 'size' ? (
+                              sortOrder === 'asc' ? <ChevronUp size={13} className="text-primary" /> : <ChevronDown size={13} className="text-primary" />
+                            ) : (
+                              <ArrowUpDown size={12} className="opacity-40" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="w-36 px-3 py-3 hidden md:block">
+                          <button
+                            type="button"
+                            onClick={() => toggleSort('modified')}
+                            className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer"
+                          >
+                            <span>Modified</span>
+                            {sortField === 'modified' ? (
+                              sortOrder === 'asc' ? <ChevronUp size={13} className="text-primary" /> : <ChevronDown size={13} className="text-primary" />
+                            ) : (
+                              <ArrowUpDown size={12} className="opacity-40" />
+                            )}
+                          </button>
+                        </div>
+                        <div className="w-28 px-4 py-3 text-right">
+                          Actions
+                        </div>
                       </div>
+
+                      {/* Virtualized rows */}
+                      <VirtualizedListBody
+                        files={sortedFiles}
+                        selectedIds={selectedIds}
+                        searchQuery={searchQuery}
+                        statusBadge={statusBadge}
+                        handleRowClick={handleRowClick}
+                        handleSelectFile={handleSelectFile}
+                        setShareFiles={setShareFiles}
+                        onPreviewFile={(f) => setPreviewFile(f)}
+                        onDeleteFile={(f) => setFilesToDelete([f])}
+                      />
                     </div>
-                    <div className="px-5 py-3 flex-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Name</div>
-                    <div className="px-5 py-3 w-28 shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Status</div>
-                    <div className="px-5 py-3 w-24 shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden sm:block">Size</div>
-                    <div className="px-5 py-3 w-28 shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wider hidden md:block">Modified</div>
-                    <div className="px-5 py-3 w-16 shrink-0 text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">Actions</div>
                   </div>
-                  {/* Virtualized rows */}
-                  <VirtualizedListBody
-                    files={filteredFiles}
-                    selectedIds={selectedIds}
-                    searchQuery={searchQuery}
-                    statusBadge={statusBadge}
-                    handleRowClick={handleRowClick}
-                    handleSelectFile={handleSelectFile}
-                    setShareFiles={setShareFiles}
-                  />
                 </motion.div>
               )}
               </AnimatePresence>
