@@ -710,9 +710,9 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
         aria-modal="true"
         aria-label={`File preview: ${file.name}`}
       >
-        {/* Overlay - NO backdrop-filter */}
+        {/* Overlay */}
         <motion.div
-          className="absolute inset-0 bg-black/80"
+          className="absolute inset-0 bg-background/80 backdrop-blur-sm"
           onClick={onClose}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -724,7 +724,7 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
         <motion.div
           ref={modalRef}
           tabIndex={-1}
-          className={`relative bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col outline-none ${
+          className={`relative bg-card text-card-foreground border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col outline-none ${
             isFullscreen ? 'w-full h-full rounded-none' : needsViewer ? 'w-full max-w-5xl h-[85vh]' : 'w-full max-w-md'
           }`}
           initial={{ opacity: 0, scale: 0.94, y: 12 }}
@@ -735,7 +735,7 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
         >
           {/* Header */}
           <motion.div
-            className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-800 bg-neutral-900 shrink-0"
+            className="flex items-center justify-between px-5 py-3.5 border-b border-border bg-card/95 shrink-0"
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.25 }}
@@ -821,28 +821,28 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
 
               <div className="w-full space-y-3">
                 <div>
-                  <p className="text-xs text-neutral-500 uppercase tracking-wider mb-0.5">Name</p>
-                  <p className="text-neutral-200 font-medium truncate" title={file.name}>{file.name}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Name</p>
+                  <p className="text-foreground font-semibold truncate" title={file.name}>{file.name}</p>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-0.5">Type</p>
-                    <p className="text-neutral-200 text-sm truncate">{file.isDirectory ? 'Folder' : typeInfo.label}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Type</p>
+                    <p className="text-foreground text-sm truncate">{file.isDirectory ? 'Folder' : typeInfo.label}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-0.5">Size</p>
-                    <p className="text-neutral-200 text-sm">{file.size}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Size</p>
+                    <p className="text-foreground text-sm">{file.size}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-0.5">Modified</p>
-                    <p className="text-neutral-200 text-sm">{file.date}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Modified</p>
+                    <p className="text-foreground text-sm">{file.date}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-0.5">Status</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Status</p>
                     {badge && (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${badge.cls}`}>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${badge.cls}`}>
                         {badge.icon} {badge.label}
                       </span>
                     )}
@@ -850,8 +850,8 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
                 </div>
                 {file.driveId && (
                   <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-0.5">Drive ID</p>
-                    <p className="text-neutral-400 text-xs font-mono truncate">{file.driveId}</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-0.5">Drive ID</p>
+                    <p className="text-muted-foreground text-xs font-mono truncate">{file.driveId}</p>
                   </div>
                 )}
               </div>
@@ -860,25 +860,25 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
 
           {/* Footer */}
           <motion.div
-            className="px-5 py-3 border-t border-neutral-800 bg-neutral-900/90 flex justify-between items-center shrink-0"
+            className="px-5 py-3 border-t border-border bg-card/95 flex justify-between items-center shrink-0"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 0.25 }}
           >
             <div className="flex items-center gap-2">
               {badge && (
-                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border ${badge.cls}`}>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${badge.cls}`}>
                   {badge.icon} {badge.label}
                 </span>
               )}
-              <span className="text-xs text-neutral-500">{file.date}</span>
+              <span className="text-xs text-muted-foreground">{file.date}</span>
             </div>
             <div className="flex items-center gap-2">
               {localFile && (
                 <button
                   onClick={handleDownload}
                   aria-label={`Download ${file.name}`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-neutral-300 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-xl transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
                 >
                   <Download size={14} /> Save
                 </button>
@@ -889,7 +889,7 @@ export const FilePreviewModal = React.memo(function FilePreviewModal({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`Open ${file.name} in Google Drive`}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold text-primary-foreground bg-primary hover:opacity-90 rounded-xl transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary shadow-sm shadow-primary/20 cursor-pointer"
                 >
                   <ExternalLink size={14} /> Open in Drive
                 </a>

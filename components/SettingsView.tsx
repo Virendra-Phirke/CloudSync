@@ -134,23 +134,32 @@ export function SettingsView() {
   return (
     <div className="h-full flex flex-col overflow-y-auto">
       {/* Header */}
-      <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 sticky top-0 bg-neutral-950/95 z-10">
-        <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Settings</h2>
-        <p className="text-sm text-neutral-400 mt-1">Configure your sync preferences and manage folders.</p>
+      <header className="px-4 sm:px-6 md:px-8 py-5 border-b border-border/70 sticky top-0 bg-background/95 backdrop-blur-md z-10">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground tracking-tight">Settings</h2>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">Configure sync schedules, directory links, and system preferences.</p>
       </header>
 
-      <div className="p-4 md:p-8 max-w-3xl space-y-8">
+      <div className="p-4 sm:p-6 md:p-8 max-w-5xl space-y-6 flex-1 w-full mx-auto">
 
-        {/* ── Sync Folders ── */}
-        <section className="animate-fadeInUp">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider">
-              Sync Folders
-            </h3>
+        {/* ── Sync Folders Bento Block ── */}
+        <div className="bento-block space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400">
+                <FolderOpen size={18} />
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-foreground">
+                  Monitored Folders
+                </h3>
+                <p className="text-xs text-muted-foreground">Directories synced bidirectionally with Google Drive</p>
+              </div>
+            </div>
+
             <button
               onClick={handleAddFolder}
               disabled={loadingPick || !fsApiSupported}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium text-blue-100 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all duration-200 shadow-sm shadow-blue-500/20"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-primary/20"
             >
               {loadingPick ? (
                 <><Loader2 size={14} className="animate-spin" /> Adding...</>
@@ -161,91 +170,97 @@ export function SettingsView() {
           </div>
 
           {!fsApiSupported && (
-            <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 text-sm text-amber-400">
-              <AlertTriangle size={16} />
-              File System API requires Chrome or Edge
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center gap-2 text-xs sm:text-sm text-amber-400">
+              <AlertTriangle size={16} className="shrink-0" />
+              File System API requires Chrome or Edge browser.
             </div>
           )}
 
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-sm overflow-hidden">
-            {folderEntries.length === 0 ? (
-              <div className="p-8 flex flex-col items-center justify-center text-center">
-                <div className="w-14 h-14 bg-neutral-800/50 rounded-2xl flex items-center justify-center mb-4 border border-neutral-700/50">
-                  <FolderPlus size={24} className="text-neutral-600" />
-                </div>
-                <p className="text-sm font-medium text-neutral-300 mb-1">No folders added</p>
-                <p className="text-xs text-neutral-500 max-w-xs">
-                  Add folders from your PC to sync with Google Drive. You can add multiple folders.
+          {folderEntries.length === 0 ? (
+            <div className="p-8 flex flex-col items-center justify-center text-center bento-subcard">
+              <div className="w-12 h-12 bg-secondary/80 rounded-2xl flex items-center justify-center mb-3 border border-border/60">
+                <FolderPlus size={22} className="text-muted-foreground" />
+              </div>
+              <p className="text-sm font-semibold text-foreground mb-1">No folders linked</p>
+              <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
+                Add folders from your PC to sync with Google Drive. Multi-folder tracking supported.
+              </p>
+              {!user && fsApiSupported && (
+                <p className="text-xs text-amber-400 mt-3 flex items-center gap-1">
+                  <AlertTriangle size={12} />
+                  Connect your Google account in Accounts tab first
                 </p>
-                {!user && fsApiSupported && (
-                  <p className="text-xs text-amber-400 mt-3 flex items-center gap-1">
-                    <AlertTriangle size={12} />
-                    Connect your Google account in Accounts tab first
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="divide-y divide-neutral-800 stagger-children">
-                {folderEntries.map((entry) => (
-                  <div
-                    key={entry.folder.id}
-                    className="p-4 flex items-start justify-between gap-4 hover:bg-neutral-800/30 transition-colors duration-150"
-                  >
-                    <div className="flex items-start gap-3.5 min-w-0">
-                      <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 shrink-0 mt-0.5">
-                        <FolderOpen size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-neutral-100 text-sm">{entry.folder.name}</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">
-                          Added {new Date(entry.folder.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
-                        {entry.loading ? (
-                          <div className="flex items-center gap-3 mt-2 animate-pulse">
-                            <div className="h-3 w-12 bg-neutral-800 rounded"></div>
-                            <div className="h-3 w-12 bg-neutral-800 rounded"></div>
-                            <div className="h-3 w-16 bg-neutral-800 rounded"></div>
-                          </div>
-                        ) : entry.stats ? (
-                          <div className="flex items-center gap-3 mt-2">
-                            {[
-                              { label: 'Files', value: entry.stats.fileCount.toString(), color: 'text-blue-400' },
-                              { label: 'Dirs', value: entry.stats.dirCount.toString(), color: 'text-purple-400' },
-                              { label: 'Size', value: formatBytes(entry.stats.totalSize), color: 'text-emerald-400' },
-                            ].map(({ label, value, color }) => (
-                              <span key={label} className="text-xs text-neutral-500">
-                                <span className={`font-semibold ${color}`}>{value}</span> {label}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-neutral-600 mt-2">Permission needed to access</p>
-                        )}
-                      </div>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-border/60 bento-subcard !p-0 overflow-hidden">
+              {folderEntries.map((entry) => (
+                <div
+                  key={entry.folder.id}
+                  className="p-4 flex items-center justify-between gap-4 hover:bg-secondary/60 transition-colors duration-150"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 shrink-0">
+                      <FolderOpen size={18} />
                     </div>
-                    <button
-                      onClick={() => setFolderToRemove({ id: entry.folder.id, name: entry.folder.name })}
-                      className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
-                      title="Remove folder"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground text-sm truncate">{entry.folder.name}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Added {new Date(entry.folder.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </p>
+                      {entry.loading ? (
+                        <div className="flex items-center gap-3 mt-1.5 animate-pulse">
+                          <div className="h-3 w-12 bg-secondary rounded"></div>
+                          <div className="h-3 w-12 bg-secondary rounded"></div>
+                          <div className="h-3 w-16 bg-secondary rounded"></div>
+                        </div>
+                      ) : entry.stats ? (
+                        <div className="flex items-center gap-3 mt-1.5">
+                          {[
+                            { label: 'Files', value: entry.stats.fileCount.toString(), color: 'text-blue-400' },
+                            { label: 'Dirs', value: entry.stats.dirCount.toString(), color: 'text-purple-400' },
+                            { label: 'Size', value: formatBytes(entry.stats.totalSize), color: 'text-emerald-400' },
+                          ].map(({ label, value, color }) => (
+                            <span key={label} className="text-xs text-muted-foreground">
+                              <span className={`font-semibold ${color}`}>{value}</span> {label}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-400 mt-1">Permission needed to access</p>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <button
+                    onClick={() => setFolderToRemove({ id: entry.folder.id, name: entry.folder.name })}
+                    className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                    title="Remove folder"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Sync Automation Preferences Bento Block ── */}
+        <div className="bento-block space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <HardDrive size={18} />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-foreground">Sync Automation</h3>
+              <p className="text-xs text-muted-foreground">Control synchronization triggers and background polling</p>
+            </div>
           </div>
-        </section>
 
-        {/* ── Sync Preferences ── */}
-        <section className="animate-fadeInUp" style={{ animationDelay: '50ms' }}>
-          <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider mb-4">Sync Preferences</h3>
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl divide-y divide-neutral-800 shadow-sm overflow-hidden">
-
-            <div className="p-5 flex items-center justify-between hover:bg-neutral-800/30 transition-colors duration-150">
+          <div className="bento-subcard divide-y divide-border/60 !p-0 overflow-hidden">
+            <div className="p-4 flex items-center justify-between hover:bg-secondary/40 transition-colors duration-150">
               <div>
-                <p className="font-medium text-neutral-100">Auto-Sync</p>
-                <p className="text-sm text-neutral-400">Enable or disable background synchronization</p>
+                <p className="font-medium text-foreground text-sm">Background Auto-Sync</p>
+                <p className="text-xs text-muted-foreground">Continuously sync changes in the background</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -255,14 +270,14 @@ export function SettingsView() {
                   onChange={(e) => updateSetting({ autoSync: e.target.checked })}
                   disabled={!settings}
                 />
-                <div className="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
 
-            <div className="p-5 flex items-center justify-between hover:bg-neutral-800/30 transition-colors duration-150">
+            <div className="p-4 flex items-center justify-between hover:bg-secondary/40 transition-colors duration-150">
               <div>
-                <p className="font-medium text-neutral-100">Launch on startup</p>
-                <p className="text-sm text-neutral-400">Automatically start CloudSync when you log in</p>
+                <p className="font-medium text-foreground text-sm">Launch on startup</p>
+                <p className="text-xs text-muted-foreground">Initialize CloudSync background daemon automatically</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -272,57 +287,57 @@ export function SettingsView() {
                   onChange={(e) => updateSetting({ launchOnStartup: e.target.checked })}
                   disabled={!settings}
                 />
-                <div className="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
             </div>
 
-            <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-neutral-800/30 transition-colors duration-150">
+            <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-secondary/40 transition-colors duration-150">
               <div>
-                <p className="font-medium text-neutral-100">Sync Interval</p>
-                <p className="text-sm text-neutral-400">How often to check for changes</p>
+                <p className="font-medium text-foreground text-sm">Sync Frequency Interval</p>
+                <p className="text-xs text-muted-foreground">Cycle interval for checking file change updates</p>
               </div>
               <select
                 disabled={!settings || !settings.autoSync}
                 value={settings?.syncIntervalMin || 5}
                 onChange={(e) => updateSetting({ syncIntervalMin: parseInt(e.target.value) })}
-                className="bg-neutral-800 border border-neutral-700 text-neutral-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full sm:w-48 p-2.5 outline-none disabled:opacity-50"
+                className="bg-secondary/80 border border-border/80 text-foreground text-xs sm:text-sm rounded-xl focus:ring-1 focus:ring-primary focus:border-primary p-2.5 outline-none disabled:opacity-50 min-w-[180px]"
               >
-                <option value="1">Every 1 minute</option>
-                <option value="5">Every 5 minutes</option>
+                <option value="1">Every 1 minute (Fast)</option>
+                <option value="5">Every 5 minutes (Standard)</option>
+                <option value="15">Every 15 minutes</option>
                 <option value="30">Every 30 minutes</option>
               </select>
             </div>
           </div>
-        </section>
+        </div>
 
-        {/* ── Advanced ── */}
-        <section className="animate-fadeInUp" style={{ animationDelay: '100ms' }}>
-          <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wider mb-4">Advanced</h3>
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl divide-y divide-neutral-800 shadow-sm overflow-hidden">
-            <div className="p-5 flex items-center justify-between hover:bg-neutral-800/30 transition-colors duration-150">
-              <div>
-                <p className="font-medium text-neutral-100">Show hidden files</p>
-                <p className="text-sm text-neutral-400">Include files starting with a dot (e.g. .gitignore)</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" />
-                <div className="w-11 h-6 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-              </label>
+        {/* ── Danger Zone Bento Block ── */}
+        <div className="bento-block border-destructive/30 space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-destructive/10 text-destructive">
+              <AlertTriangle size={18} />
             </div>
-            <div className="p-5 flex items-center justify-between hover:bg-neutral-800/30 transition-colors duration-150">
-              <div>
-                <p className="font-medium text-red-500">Reset Application Data</p>
-                <p className="text-sm text-neutral-400">Clears all local metadata and disconnects accounts</p>
-              </div>
-              <button
-                onClick={() => setShowResetConfirm(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors shadow-sm shadow-red-500/20"
-              >
-                Factory Reset
-              </button>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-destructive">Danger Zone</h3>
+              <p className="text-xs text-muted-foreground">Reset local tracking cache and unlink accounts</p>
             </div>
           </div>
-        </section>
+
+          <div className="bento-subcard p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-destructive/20 bg-destructive/5">
+            <div>
+              <p className="font-semibold text-foreground text-sm">Factory Reset Application</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Clears all local IndexedDB metadata, removes folder handles, and disconnects Google OAuth.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="px-4 py-2 text-xs sm:text-sm font-medium text-white bg-destructive hover:bg-destructive/90 rounded-xl transition-colors shadow-sm shrink-0"
+            >
+              Reset App Data
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Confirmation Dialogs */}

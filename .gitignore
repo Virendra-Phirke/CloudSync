@@ -9,3 +9,4 @@ scripts/client_secret_*.json
 firebase-applet-config.json
 docs/
 .agents/
+*.tsbuildinfo

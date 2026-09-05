@@ -77,7 +77,7 @@ export function ConfirmDialog({
           <motion.div
             ref={modalRef}
             tabIndex={-1}
-            className="relative bg-neutral-900 border border-neutral-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden outline-none flex flex-col"
+            className="relative bg-card text-card-foreground border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden outline-none flex flex-col"
             initial={{ opacity: 0, scale: 0.94, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 12 }}
@@ -85,21 +85,21 @@ export function ConfirmDialog({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800 bg-neutral-900/90">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card/95">
               <div className="flex items-center gap-3">
                 {isDestructive && (
-                  <div className="p-1.5 rounded-lg bg-red-500/10 text-red-400">
+                  <div className="p-1.5 rounded-lg bg-destructive/10 text-destructive">
                     <AlertTriangle size={18} aria-hidden="true" />
                   </div>
                 )}
-                <h3 id="confirm-dialog-title" className="text-base font-semibold text-neutral-100">
+                <h3 id="confirm-dialog-title" className="text-base font-semibold text-card-foreground">
                   {title}
                 </h3>
               </div>
               <button
                 onClick={onCancel}
                 aria-label="Close dialog"
-                className="p-1.5 rounded-lg hover:bg-neutral-800 transition-colors text-neutral-400 hover:text-neutral-200 focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
+                className="p-1.5 rounded-lg hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary outline-none"
               >
                 <X size={18} aria-hidden="true" />
               </button>
@@ -107,16 +107,16 @@ export function ConfirmDialog({
 
             {/* Content */}
             <div className="px-5 py-6">
-              <p id="confirm-dialog-description" className="text-sm text-neutral-300">
+              <div id="confirm-dialog-description" className="text-sm text-muted-foreground leading-relaxed">
                 {message}
-              </p>
+              </div>
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-4 border-t border-neutral-800 bg-neutral-900/90 flex justify-end gap-3">
+            <div className="px-5 py-4 border-t border-border bg-card/95 flex justify-end gap-3">
               <button
                 onClick={onCancel}
-                className="px-4 py-2 text-sm font-medium text-neutral-300 bg-neutral-800 hover:bg-neutral-700 rounded-xl transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-neutral-500"
+                className="px-4 py-2 text-sm font-medium text-foreground bg-secondary hover:bg-secondary/80 rounded-xl transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {cancelText}
               </button>
@@ -124,10 +124,10 @@ export function ConfirmDialog({
                 onClick={() => {
                   onConfirm();
                 }}
-                className={`px-4 py-2 text-sm font-medium text-white rounded-xl transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 ${
+                className={`px-4 py-2 text-sm font-medium rounded-xl transition-all duration-150 active:scale-95 focus:outline-none focus-visible:ring-2 ${
                   isDestructive
-                    ? 'bg-red-600 hover:bg-red-500 focus-visible:ring-red-500 shadow-sm shadow-red-500/20'
-                    : 'bg-blue-600 hover:bg-blue-500 focus-visible:ring-blue-500 shadow-sm shadow-blue-500/20'
+                    ? 'bg-destructive text-destructive-foreground hover:opacity-90 focus-visible:ring-destructive shadow-sm shadow-destructive/20'
+                    : 'bg-primary text-primary-foreground hover:opacity-90 focus-visible:ring-primary shadow-sm shadow-primary/20'
                 }`}
               >
                 {confirmText}

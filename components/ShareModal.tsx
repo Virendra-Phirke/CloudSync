@@ -62,35 +62,37 @@ export function ShareModal({ isOpen, onClose, files }: ShareModalProps) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div 
-        className="absolute inset-0 bg-neutral-950/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
         onClick={onClose}
       />
       
-      <div className="relative bg-neutral-900 border border-neutral-800 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-zoomIn flex flex-col max-h-[90vh]">
+      <div className="relative bg-card text-card-foreground border border-border shadow-2xl rounded-2xl w-full max-w-md overflow-hidden animate-zoomIn flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-neutral-800 shrink-0">
-          <h2 className="text-lg font-semibold text-neutral-100 flex items-center gap-2 truncate">
-            <Globe className="text-blue-400 shrink-0" size={20} />
+        <div className="flex items-center justify-between p-4 sm:p-5 border-b border-border shrink-0 bg-card/95">
+          <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2.5 truncate">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary shrink-0">
+              <Globe size={18} />
+            </div>
             <span className="truncate">{title}</span>
           </h2>
           <button 
             onClick={onClose}
-            className="p-1 rounded-lg text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors shrink-0 ml-2"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors shrink-0 ml-2"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-5 space-y-5 overflow-y-auto hide-scrollbar">
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
               {error}
             </div>
           )}
           
           {!links && hasInvalid && (
-             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm">
+             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-sm">
               {files.length - validFiles.length} item(s) are not synced to Drive and will be skipped.
             </div>
           )}
@@ -98,9 +100,9 @@ export function ShareModal({ isOpen, onClose, files }: ShareModalProps) {
           {!links ? (
             <>
               <div className="space-y-3">
-                <label className="text-sm font-medium text-neutral-300">General access</label>
-                <div className="flex flex-col gap-2 p-1 bg-neutral-950/50 rounded-xl border border-neutral-800">
-                  <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${role === 'reader' ? 'bg-neutral-800/80 ring-1 ring-blue-500/30' : 'hover:bg-neutral-800/40'}`}>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">General access</label>
+                <div className="flex flex-col gap-2 p-1.5 bg-secondary/40 rounded-xl border border-border">
+                  <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${role === 'reader' ? 'bg-background shadow-sm border border-primary/30' : 'hover:bg-secondary/70 border border-transparent'}`}>
                     <input 
                       type="radio" 
                       name="role" 
@@ -110,13 +112,13 @@ export function ShareModal({ isOpen, onClose, files }: ShareModalProps) {
                       className="hidden"
                     />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-neutral-200">Viewer</p>
-                      <p className="text-xs text-neutral-500 mt-0.5">Anyone with the link can view</p>
+                      <p className="text-sm font-semibold text-foreground">Viewer</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Anyone with the link can view</p>
                     </div>
-                    {role === 'reader' && <Check size={16} className="text-blue-400" />}
+                    {role === 'reader' && <Check size={16} className="text-primary" />}
                   </label>
                   
-                  <label className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${role === 'writer' ? 'bg-neutral-800/80 ring-1 ring-blue-500/30' : 'hover:bg-neutral-800/40'}`}>
+                  <label className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${role === 'writer' ? 'bg-background shadow-sm border border-primary/30' : 'hover:bg-secondary/70 border border-transparent'}`}>
                     <input 
                       type="radio" 
                       name="role" 
@@ -126,10 +128,10 @@ export function ShareModal({ isOpen, onClose, files }: ShareModalProps) {
                       className="hidden"
                     />
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-neutral-200">Editor</p>
-                      <p className="text-xs text-neutral-500 mt-0.5">Anyone with the link can edit</p>
+                      <p className="text-sm font-semibold text-foreground">Editor</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Anyone with the link can edit</p>
                     </div>
-                    {role === 'writer' && <Check size={16} className="text-blue-400" />}
+                    {role === 'writer' && <Check size={16} className="text-primary" />}
                   </label>
                 </div>
               </div>
@@ -138,7 +140,7 @@ export function ShareModal({ isOpen, onClose, files }: ShareModalProps) {
                 <button
                   onClick={handleGenerateLink}
                   disabled={loading || validFiles.length === 0}
-                  className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium rounded-xl transition-all shadow-sm shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-primary hover:opacity-90 active:scale-[0.99] text-primary-foreground font-semibold rounded-xl transition-all shadow-sm shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <><Loader2 size={18} className="animate-spin" /> Generating...</>
@@ -151,30 +153,30 @@ export function ShareModal({ isOpen, onClose, files }: ShareModalProps) {
           ) : (
             <div className="space-y-4 py-2 animate-fadeIn">
               <div className="text-center mb-6">
-                <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-2 text-emerald-400">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-2.5 text-emerald-500">
                   <Check size={24} />
                 </div>
-                <h3 className="text-lg font-medium text-neutral-100">Link{links.length > 1 ? 's' : ''} Generated!</h3>
-                <p className="text-sm text-neutral-400">Anyone with the link can now {role === 'reader' ? 'view' : 'edit'}.</p>
+                <h3 className="text-base font-bold text-foreground">Link{links.length > 1 ? 's' : ''} Generated!</h3>
+                <p className="text-xs text-muted-foreground mt-1">Anyone with the link can now {role === 'reader' ? 'view' : 'edit'}.</p>
               </div>
               
               <div className="space-y-3">
                 {links.map((item, idx) => (
                   <div key={idx} className="flex flex-col gap-1.5">
-                    {links.length > 1 && <span className="text-xs font-medium text-neutral-400 truncate pl-1">{item.name}</span>}
-                    <div className="flex items-center gap-2 p-2 bg-neutral-950 rounded-xl border border-neutral-800">
+                    {links.length > 1 && <span className="text-xs font-medium text-muted-foreground truncate pl-1">{item.name}</span>}
+                    <div className="flex items-center gap-2 p-2 bg-secondary/50 rounded-xl border border-border">
                       <input 
                         type="text" 
                         readOnly 
                         value={item.link} 
-                        className="flex-1 bg-transparent text-sm text-neutral-300 px-2 outline-none w-full"
+                        className="flex-1 bg-transparent text-xs sm:text-sm text-foreground px-2 outline-none w-full"
                       />
                       <button
                         onClick={() => handleCopy(item.link, idx)}
-                        className="flex items-center justify-center w-8 h-8 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 rounded-lg transition-colors shrink-0"
+                        className="flex items-center justify-center w-8 h-8 bg-secondary hover:bg-secondary/80 text-foreground rounded-lg transition-colors shrink-0"
                         title="Copy link"
                       >
-                        {copiedIndex === idx ? <Check size={16} className="text-emerald-400" /> : <Copy size={16} />}
+                        {copiedIndex === idx ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
                       </button>
                     </div>
                   </div>
@@ -185,9 +187,9 @@ export function ShareModal({ isOpen, onClose, files }: ShareModalProps) {
                 <div className="pt-2">
                   <button
                     onClick={handleCopyAll}
-                    className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-medium rounded-xl transition-colors"
+                    className="w-full flex justify-center items-center gap-2 px-4 py-2.5 bg-secondary hover:bg-secondary/80 text-foreground font-semibold rounded-xl transition-colors"
                   >
-                    {copiedIndex === -1 ? <Check size={18} className="text-emerald-400" /> : <Copy size={18} />}
+                    {copiedIndex === -1 ? <Check size={18} className="text-emerald-500" /> : <Copy size={18} />}
                     {copiedIndex === -1 ? 'Copied All Links!' : 'Copy All Links'}
                   </button>
                 </div>

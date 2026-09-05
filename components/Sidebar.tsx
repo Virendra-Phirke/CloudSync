@@ -143,23 +143,26 @@ export function Sidebar({
           <span className={clsx("whitespace-nowrap relative z-10", isCollapsed ? "md:hidden" : "")}>Theme</span>
         </motion.button>
         
-        <div className={clsx("flex items-center", isCollapsed ? "max-md:px-2 max-md:gap-3 md:justify-center md:px-0" : "gap-3 px-2")}>
+        <div className={clsx(
+          "transition-all duration-200",
+          isCollapsed ? "flex justify-center" : "bento-subcard flex items-center gap-3 p-3"
+        )}>
           <div className="relative shrink-0">
             <div className={clsx(
               "w-2.5 h-2.5 rounded-full",
               isSyncing ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
             )} />
           </div>
-          <div className={clsx("flex flex-col whitespace-nowrap overflow-hidden flex-1", isCollapsed ? "md:hidden" : "")}>
+          <div className={clsx("flex flex-col whitespace-nowrap overflow-hidden flex-1", isCollapsed ? "hidden" : "")}>
             <span className="text-xs font-semibold text-sidebar-foreground">
               {isSyncing ? 'Syncing...' : 'Ready'}
             </span>
-            <span className="text-[10px] text-sidebar-foreground/50 truncate pr-2" title={syncProgressMsg}>
-              {isSyncing ? syncProgressMsg || 'Working...' : 'Waiting for files'}
+            <span className="text-[10px] text-sidebar-foreground/60 truncate pr-1" title={syncProgressMsg}>
+              {isSyncing ? syncProgressMsg || 'Working...' : 'All files in sync'}
             </span>
           </div>
           {isSyncing && !isCollapsed && (
-            <button onClick={cancelSync} className="p-1 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400 md:block hidden" title="Cancel Sync">
+            <button onClick={cancelSync} className="p-1 rounded-md bg-destructive/10 hover:bg-destructive/20 text-destructive shrink-0 transition-colors" title="Cancel Sync">
               <X size={14} />
             </button>
           )}

@@ -185,12 +185,12 @@ export function SyncIgnoreModal({ isOpen, onClose, folderHandle, folderName, onS
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm text-[13px] font-mono">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm text-[13px] font-mono">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="bg-[#181818] text-zinc-200 border border-neutral-800 shadow-2xl flex flex-col rounded-xl overflow-hidden w-[95vw] max-w-[1000px] h-[85vh]"
+        className="bg-[#181818] text-zinc-200 border border-border shadow-2xl flex flex-col rounded-2xl overflow-hidden w-[95vw] max-w-[1000px] h-[85vh]"
       >
         <div className="flex flex-col md:flex-row h-full min-h-0">
           

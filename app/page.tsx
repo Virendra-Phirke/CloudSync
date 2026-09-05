@@ -18,7 +18,53 @@ const SettingsView = dynamic(() => import('../components/SettingsView').then(mod
 const ThemeSidebar = dynamic(() => import('../components/ThemeSidebar').then(mod => mod.ThemeSidebar), { ssr: false });
 import { handleRedirectCallback } from '../lib/oauth';
 import { useToast } from '../components/ToastContext';
+import { useSync } from '../components/SyncContext';
 import { AnimatePresence, motion } from 'motion/react';
+import { Palette } from 'lucide-react';
+
+function MobileTopBar({
+  onOpenMenu,
+  onOpenTheme
+}: {
+  onOpenMenu: () => void;
+  onOpenTheme: () => void;
+}) {
+  const { isSyncing } = useSync();
+
+  return (
+    <header className="md:hidden flex items-center justify-between px-4 py-3 bg-card border-b border-border/80 shrink-0 z-20">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onOpenMenu}
+          className="p-2 -ml-1 text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-xl transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label="Open menu"
+        >
+          <Menu size={22} />
+        </button>
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0">
+            <img src="/Icon/cloudSynce-logo.svg" alt="CloudSync" className="w-full h-full object-contain" />
+          </div>
+          <span className="font-semibold text-base tracking-tight text-foreground">CloudSync</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-secondary/70 border border-border/60 text-xs font-medium">
+          <span className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+          <span className="text-muted-foreground">{isSyncing ? 'Syncing' : 'Ready'}</span>
+        </div>
+        <button
+          onClick={onOpenTheme}
+          className="p-2 text-muted-foreground hover:text-foreground hover:bg-secondary/60 rounded-xl transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label="Theme settings"
+        >
+          <Palette size={18} />
+        </button>
+      </div>
+    </header>
+  );
+}
 
 export default function Page() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -41,13 +87,13 @@ export default function Page() {
   }, [showToast]);
 
   const pageVariants: any = {
-    initial: { opacity: 0, y: 10 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
-    exit: { opacity: 0, y: -10, transition: { duration: 0.2, ease: 'easeIn' } }
+    initial: { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' } },
+    exit: { opacity: 0, y: -8, transition: { duration: 0.15, ease: 'easeIn' } }
   };
 
   return (
-    <div className="flex h-screen bg-neutral-950 text-neutral-100 overflow-hidden w-full relative">
+    <div className="flex flex-col md:flex-row h-screen bg-background text-foreground overflow-hidden w-full relative">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -58,16 +104,13 @@ export default function Page() {
         setIsMobileOpen={setIsMobileOpen}
       />
 
-      {/* Mobile Hamburger Menu Button */}
-      <button
-        onClick={() => setIsMobileOpen(true)}
-        className="md:hidden fixed top-5 left-4 z-20 p-2 text-neutral-400 hover:text-white rounded-lg transition-colors bg-neutral-950/50 backdrop-blur-sm"
-        aria-label="Open menu"
-      >
-        <Menu size={24} />
-      </button>
+      {/* Mobile Top Navigation Bar Block */}
+      <MobileTopBar
+        onOpenMenu={() => setIsMobileOpen(true)}
+        onOpenTheme={() => setIsThemeOpen(true)}
+      />
 
-      <main className="flex-1 overflow-y-auto relative h-full bg-neutral-950">
+      <main className="flex-1 overflow-y-auto relative h-full bg-background">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
             <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
@@ -95,3 +138,4 @@ export default function Page() {
     </div>
   );
 }
+

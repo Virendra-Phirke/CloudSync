@@ -1,5 +1,5 @@
 'use client';
-import { Folder, HardDrive, Cloud, FileText, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen } from 'lucide-react';
+import { Folder, HardDrive, Cloud, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen, RefreshCw, Plus, ArrowUpRight, Zap, ShieldCheck } from 'lucide-react';
 import React, { useState, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
@@ -7,8 +7,10 @@ import { motion } from 'motion/react';
 const StorageChart = dynamic(() => import('./StorageChart').then(mod => mod.StorageChart), { ssr: false });
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
-import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, FolderStats, SyncFolder } from '../lib/localFolder';
+import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, addLocalFolder, FolderStats, SyncFolder } from '../lib/localFolder';
 import { FilePreviewModal } from './FilePreviewModal';
+import { useSync } from './SyncContext';
+import { useToast } from './ToastContext';
 
 function formatBytes(bytes: number, decimals = 2) {
   if (!+bytes) return '0 Bytes';
@@ -17,12 +19,10 @@ function formatBytes(bytes: number, decimals = 2) {
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   const val = bytes / Math.pow(k, i);
-  // Truncate instead of round to prevent 4.999 TB showing as 5 TB
   const factor = Math.pow(10, dm);
   const truncated = Math.floor(val * factor) / factor;
   return `${truncated} ${sizes[i]}`;
 }
-
 
 interface FolderWithStats {
   folder: SyncFolder;
@@ -39,9 +39,16 @@ export const Dashboard = React.memo(function Dashboard() {
   // Multi-folder state
   const [folderEntries, setFolderEntries] = useState<FolderWithStats[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(true);
+  const [addingFolder, setAddingFolder] = useState(false);
+
+  // Search filter for recent files
+  const [activitySearch, setActivitySearch] = useState('');
 
   // File Preview Modal state
   const [previewFile, setPreviewFile] = useState<any>(null);
+
+  const { isSyncing, syncProgressMsg, startSync, cancelSync } = useSync();
+  const { showToast } = useToast();
 
   const loadDriveData = useCallback(async () => {
     setLoading(true);
@@ -53,7 +60,7 @@ export const Dashboard = React.memo(function Dashboard() {
       setQuota(q);
 
       const sorted = f.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
-      setRecentFiles(sorted.slice(0, 5));
+      setRecentFiles(sorted.slice(0, 10));
     } catch (err) {
       console.error(err);
     } finally {
@@ -66,11 +73,9 @@ export const Dashboard = React.memo(function Dashboard() {
     try {
       const infos = await getLocalFolderInfos();
 
-      // Initialize entries with loading state
       const entries: FolderWithStats[] = infos.map(f => ({ folder: f, stats: null, loading: true }));
       setFolderEntries(entries);
 
-      // Load stats for each folder in parallel
       const promises = infos.map(async (f) => {
         try {
           const entry = await getLocalFolderById(f.id);
@@ -109,6 +114,39 @@ export const Dashboard = React.memo(function Dashboard() {
     );
     return () => unsubscribe();
   }, [loadDriveData, loadLocalData]);
+
+  const handleQuickAddFolder = async () => {
+    if (!('showDirectoryPicker' in window)) {
+      showToast('File System API requires Chrome or Edge', 'error');
+      return;
+    }
+    setAddingFolder(true);
+    try {
+      const entry = await addLocalFolder();
+      if (entry) {
+        showToast(`Added folder "${entry.info.name}"`, 'success');
+        await loadLocalData();
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        showToast(err.message || 'Failed to add folder', 'error');
+      }
+    } finally {
+      setAddingFolder(false);
+    }
+  };
+
+  const handleQuickSync = () => {
+    if (folderEntries.length === 0) {
+      showToast('Add a local folder first to sync', 'info');
+      return;
+    }
+    if (!user) {
+      showToast('Connect your Google Drive account in Accounts tab', 'error');
+      return;
+    }
+    startSync(folderEntries[0].folder.id);
+  };
 
   const handleExport = () => {
     if (recentFiles.length === 0) return;
@@ -156,291 +194,548 @@ export const Dashboard = React.memo(function Dashboard() {
     { name: 'Free', value: 1, color: '#262626' },
   ];
 
+  const filteredRecentFiles = recentFiles.filter(f =>
+    f.name.toLowerCase().includes(activitySearch.toLowerCase())
+  );
+
   const containerVariants = {
     hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+    show: { opacity: 1, transition: { staggerChildren: 0.08 } }
   };
 
   const itemVariants: any = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
+    hidden: { opacity: 0, y: 16 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 350, damping: 26 } }
   };
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
-      {/* Header */}
-      <header className="px-8 max-md:pl-20 py-6 border-b border-neutral-800 flex items-center justify-between sticky top-0 bg-neutral-950/95 z-10">
-        <h2 className="text-2xl font-semibold text-neutral-100 tracking-tight">Dashboard</h2>
+      {/* ── Top Header Block ── */}
+      <header className="px-4 sm:px-6 md:px-8 py-5 border-b border-border/70 sticky top-0 bg-background/95 backdrop-blur-md z-10 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Overview</h2>
+            <span className="bento-badge bg-primary/10 text-primary border border-primary/20">
+              Live Sync
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Real-time synchronization metrics across local storage and cloud.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => {
+              loadDriveData();
+              loadLocalData();
+            }}
+            disabled={loading || loadingLocal}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-foreground bg-secondary/80 hover:bg-secondary border border-border/80 rounded-xl transition-all disabled:opacity-50"
+            title="Refresh dashboard stats"
+          >
+            <RefreshCw size={14} className={loading || loadingLocal ? 'animate-spin text-primary' : ''} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          <button
+            onClick={handleQuickSync}
+            disabled={isSyncing || folderEntries.length === 0 || !user}
+            className="flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 disabled:opacity-50 rounded-xl transition-all shadow-md shadow-primary/20"
+          >
+            {isSyncing ? (
+              <>
+                <Loader2 size={15} className="animate-spin" />
+                <span>Syncing...</span>
+              </>
+            ) : (
+              <>
+                <UploadCloud size={15} />
+                <span>Sync Now</span>
+              </>
+            )}
+          </button>
+        </div>
       </header>
 
+      {/* ── Bento Grid Content ── */}
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="p-4 md:p-8 space-y-8 flex-1"
+        className="p-4 sm:p-6 md:p-8 space-y-6 flex-1 max-w-7xl w-full mx-auto"
       >
-
-        {/* ── Storage Stats ── */}
-        <motion.section variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* Local Folders Storage (Aggregate) */}
-          <motion.div whileHover={{ y: -4, transition: { duration: 0.2 } }} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex flex-col gap-4">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
-                  <Folder size={20} />
-                </div>
-                <h3 className="font-medium text-neutral-300">Local PC Folders</h3>
+        {/* ── 4 KPI Metric Bento Row ── */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          {/* KPI 1: Local PC Storage */}
+          <motion.div variants={itemVariants} className="bento-block bento-block-interactive">
+            <div className="flex items-center justify-between text-muted-foreground mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Local Storage</span>
+              <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+                <HardDrive size={16} />
               </div>
-              {folderEntries.length > 0 && (
-                <span className="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">
-                  {folderEntries.length} folder{folderEntries.length !== 1 ? 's' : ''}
-                </span>
+            </div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+              {loadingLocal ? (
+                <div className="h-8 w-24 bg-secondary/60 rounded animate-pulse" />
+              ) : (
+                formatBytes(aggregateStats.totalSize)
               )}
             </div>
-
-            {loadingLocal ? (
-              <div className="animate-pulse">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <div className="h-8 w-32 bg-neutral-800 rounded-lg"></div>
-                  <div className="h-4 w-40 bg-neutral-800/50 rounded"></div>
-                </div>
-                <div className="bg-neutral-800/30 rounded-xl p-4 grid grid-cols-3 gap-4 mt-4 mb-5">
-                  <div className="space-y-2">
-                    <div className="h-3 w-10 bg-neutral-800/50 rounded"></div>
-                    <div className="h-6 w-16 bg-neutral-800 rounded"></div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-3 w-12 bg-neutral-800/50 rounded"></div>
-                    <div className="h-6 w-16 bg-neutral-800 rounded"></div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="h-3 w-14 bg-neutral-800/50 rounded"></div>
-                    <div className="h-6 w-12 bg-neutral-800 rounded"></div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="shrink-0 bg-neutral-800/20 border border-neutral-800/50 rounded-xl px-3.5 py-2.5 w-[140px] h-[52px]"></div>
-                  ))}
-                </div>
-              </div>
-            ) : folderEntries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center text-center py-6">
-                <HardDrive className="w-10 h-10 text-neutral-700 mb-2" />
-                <p className="text-sm font-medium text-neutral-300">No folders added</p>
-                <p className="text-xs text-neutral-500 mt-1">Go to Files tab to add a folder</p>
-              </div>
-            ) : (
-              <>
-                {/* Aggregate stats */}
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-3xl font-bold text-neutral-100">{formatBytes(aggregateStats.totalSize)}</span>
-                  <span className="text-neutral-400 font-medium">total across all folders</span>
-                </div>
-
-                <div className="bg-neutral-800/50 rounded-xl p-4 grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Files</p>
-                    <p className="text-xl font-semibold text-neutral-200">{aggregateStats.fileCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Folders</p>
-                    <p className="text-xl font-semibold text-neutral-200">{aggregateStats.dirCount}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-neutral-500 uppercase tracking-wider mb-1">Sources</p>
-                    <p className="text-xl font-semibold text-neutral-200">{folderEntries.length}</p>
-                  </div>
-                </div>
-
-                {/* Per-folder breakdown (horizontal scroll) */}
-                <div className="flex gap-2 overflow-x-auto pb-1 mt-1 stagger-children">
-                  {folderEntries.map((entry) => (
-                    <div
-                      key={entry.folder.id}
-                      className="shrink-0 bg-neutral-800/40 border border-neutral-700/50 rounded-xl px-3.5 py-2.5 min-w-[140px]"
-                    >
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <FolderOpen size={13} className="text-blue-400 shrink-0" />
-                        <p className="text-xs font-medium text-neutral-300 truncate">{entry.folder.name}</p>
-                      </div>
-                      {entry.loading ? (
-                        <div className="h-3 w-20 bg-neutral-800 rounded animate-pulse" />
-                      ) : entry.stats ? (
-                        <p className="text-[11px] text-neutral-500">
-                          {entry.stats.fileCount} files · {formatBytes(entry.stats.totalSize)}
-                        </p>
-                      ) : (
-                        <p className="text-[11px] text-neutral-600">No access</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              Across {folderEntries.length} folder{folderEntries.length !== 1 ? 's' : ''}
+            </p>
           </motion.div>
 
-          {/* Google Drive Storage */}
-          <motion.div whileHover={{ y: -4, transition: { duration: 0.2 } }} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 shadow-sm flex items-center gap-6">
-            <div className="flex-1 flex flex-col justify-between h-full">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg">
-                  <Cloud size={20} />
+          {/* KPI 2: Cloud Quota */}
+          <motion.div variants={itemVariants} className="bento-block bento-block-interactive">
+            <div className="flex items-center justify-between text-muted-foreground mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Cloud Used</span>
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+                <Cloud size={16} />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+              {!user ? (
+                '--'
+              ) : loading ? (
+                <div className="h-8 w-24 bg-secondary/60 rounded animate-pulse" />
+              ) : (
+                cloudUsedStr
+              )}
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
+              <span>{user ? `of ${cloudTotalStr}` : 'Not connected'}</span>
+              {user && <span className="font-semibold text-foreground">{cloudUsedPercent}%</span>}
+            </div>
+          </motion.div>
+
+          {/* KPI 3: Total Files */}
+          <motion.div variants={itemVariants} className="bento-block bento-block-interactive">
+            <div className="flex items-center justify-between text-muted-foreground mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Tracked Files</span>
+              <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+                <FolderOpen size={16} />
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground tracking-tight">
+              {loadingLocal ? (
+                <div className="h-8 w-20 bg-secondary/60 rounded animate-pulse" />
+              ) : (
+                aggregateStats.fileCount
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              in {aggregateStats.dirCount} subdirectories
+            </p>
+          </motion.div>
+
+          {/* KPI 4: Sync Engine Status */}
+          <motion.div variants={itemVariants} className="bento-block bento-block-interactive">
+            <div className="flex items-center justify-between text-muted-foreground mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider">Engine State</span>
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                <Zap size={16} />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${isSyncing ? 'bg-amber-400 animate-pulse' : user ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
+              <span className="text-base sm:text-lg font-bold text-foreground">
+                {isSyncing ? 'Synchronizing' : user ? 'Operational' : 'Idle'}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              {isSyncing ? syncProgressMsg || 'Transferring...' : user ? 'Continuous sync ready' : 'Connect account to sync'}
+            </p>
+          </motion.div>
+        </div>
+
+        {/* ── Main Bento Grid (12-column layout) ── */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5 sm:gap-6">
+
+          {/* Bento Card 1: Local PC Folders (6 cols) */}
+          <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-6 bento-block flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl">
+                    <Folder size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground text-base">Local PC Folders</h3>
+                    <p className="text-xs text-muted-foreground">Monitored source folders on device</p>
+                  </div>
                 </div>
-                <h3 className="font-medium text-neutral-300">Google Drive Storage</h3>
+
+                <button
+                  onClick={handleQuickAddFolder}
+                  disabled={addingFolder}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {addingFolder ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                  <span>Add Folder</span>
+                </button>
+              </div>
+
+              {loadingLocal ? (
+                <div className="space-y-3 animate-pulse py-2">
+                  <div className="h-12 bg-secondary/50 rounded-xl" />
+                  <div className="h-16 bg-secondary/30 rounded-xl" />
+                </div>
+              ) : folderEntries.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center py-8 px-4 bento-subcard">
+                  <FolderOpen className="w-10 h-10 text-muted-foreground/60 mb-2.5" />
+                  <p className="text-sm font-semibold text-foreground">No folders linked yet</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    Link directories from your computer to automatically mirror changes to Google Drive.
+                  </p>
+                  <button
+                    onClick={handleQuickAddFolder}
+                    className="mt-4 flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-primary-foreground bg-primary hover:opacity-90 rounded-xl transition-all"
+                  >
+                    <Plus size={14} />
+                    <span>Select Local Directory</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Aggregate stats banner */}
+                  <div className="bento-subcard grid grid-cols-3 gap-3 text-center">
+                    <div>
+                      <p className="text-[11px] text-muted-foreground uppercase font-semibold">Total Size</p>
+                      <p className="text-base font-bold text-foreground mt-0.5">{formatBytes(aggregateStats.totalSize)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground uppercase font-semibold">Files</p>
+                      <p className="text-base font-bold text-foreground mt-0.5">{aggregateStats.fileCount}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-muted-foreground uppercase font-semibold">Sources</p>
+                      <p className="text-base font-bold text-foreground mt-0.5">{folderEntries.length}</p>
+                    </div>
+                  </div>
+
+                  {/* Individual Folder Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[160px] overflow-y-auto pr-1">
+                    {folderEntries.map((entry) => (
+                      <div
+                        key={entry.folder.id}
+                        className="bento-subcard flex items-center justify-between gap-2 p-3 hover:border-border transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <FolderOpen size={16} className="text-blue-400 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-foreground truncate" title={entry.folder.name}>
+                              {entry.folder.name}
+                            </p>
+                            {entry.loading ? (
+                              <div className="h-2.5 w-16 bg-secondary rounded animate-pulse mt-1" />
+                            ) : entry.stats ? (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                {entry.stats.fileCount} files · {formatBytes(entry.stats.totalSize)}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-amber-400 mt-0.5">Permission needed</p>
+                            )}
+                          </div>
+                        </div>
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Connected" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+
+          {/* Bento Card 2: Google Drive Storage (6 cols) */}
+          <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-6 bento-block flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                    <Cloud size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground text-base">Google Drive Storage</h3>
+                    <p className="text-xs text-muted-foreground">Connected cloud quota & distribution</p>
+                  </div>
+                </div>
+
+                {user && (
+                  <span className="bento-badge bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <CheckCircle2 size={12} /> Connected
+                  </span>
+                )}
               </div>
 
               {!user ? (
-                <p className="text-sm text-neutral-500 py-6">Connect your Google account to see storage details</p>
+                <div className="flex flex-col items-center justify-center text-center py-8 px-4 bento-subcard">
+                  <Cloud className="w-10 h-10 text-muted-foreground/60 mb-2.5" />
+                  <p className="text-sm font-semibold text-foreground">Google Drive Not Connected</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    Link your Google account to track drive storage and enable two-way cloud sync.
+                  </p>
+                </div>
               ) : loading ? (
-                <div className="animate-pulse py-1">
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <div className="h-8 w-24 bg-neutral-800 rounded-lg"></div>
-                    <div className="h-4 w-32 bg-neutral-800/50 rounded"></div>
-                  </div>
-                  <div className="w-full bg-neutral-800/50 rounded-full h-1.5 mt-4 mb-3"></div>
-                  <div className="flex justify-between mt-3">
-                    <div className="h-3 w-20 bg-neutral-800/50 rounded"></div>
-                    <div className="h-3 w-16 bg-neutral-800/50 rounded"></div>
-                  </div>
+                <div className="animate-pulse space-y-4 py-3">
+                  <div className="h-6 w-36 bg-secondary/60 rounded" />
+                  <div className="h-2 w-full bg-secondary/50 rounded" />
+                  <div className="h-20 bg-secondary/30 rounded-xl" />
                 </div>
               ) : (
-                <>
-                  <div className="flex items-baseline gap-2 mb-1">
-                    <span className="text-3xl font-bold text-neutral-100">{cloudUsedStr}</span>
-                    <span className="text-neutral-400 font-medium">of {cloudTotalStr} used</span>
+                <div className="space-y-4">
+                  <div className="flex items-baseline justify-between">
+                    <div>
+                      <span className="text-2xl font-bold text-foreground">{cloudUsedStr}</span>
+                      <span className="text-xs text-muted-foreground ml-1.5 font-medium">used of {cloudTotalStr}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-muted-foreground">{cloudFreeStr} free</span>
                   </div>
 
-                  <div className="w-full bg-neutral-800 rounded-full h-1.5 mt-3 mb-3 overflow-hidden">
+                  {/* Progress Bar */}
+                  <div className="w-full bg-secondary rounded-full h-2 overflow-hidden">
                     <div
-                      className={`h-1.5 rounded-full transition-all duration-700 ease-out ${cloudUsedPercent > 80 ? 'bg-red-500' : cloudUsedPercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                      className={`h-2 rounded-full transition-all duration-700 ease-out ${
+                        cloudUsedPercent > 80 ? 'bg-red-500' : cloudUsedPercent > 60 ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`}
                       style={{ width: `${Math.min(cloudUsedPercent, 100)}%` }}
                     />
                   </div>
 
-                  <div className="flex flex-col gap-1.5 text-xs text-neutral-400 mt-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                      <span>In Drive: <span className="text-neutral-200">{driveUsedStr}</span></span>
+                  {/* Breakdown Legend and Chart */}
+                  <div className="flex items-center justify-between gap-4 pt-1">
+                    <div className="grid grid-cols-1 gap-2 flex-1 text-xs">
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                          <span className="text-muted-foreground">In Drive</span>
+                        </div>
+                        <span className="font-semibold text-foreground">{driveUsedStr}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                          <span className="text-muted-foreground">In Trash</span>
+                        </div>
+                        <span className="font-semibold text-foreground">{trashUsedStr}</span>
+                      </div>
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-neutral-600" />
+                          <span className="text-muted-foreground">Free Space</span>
+                        </div>
+                        <span className="font-semibold text-foreground">{cloudFreeStr}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span>In Trash: <span className="text-neutral-200">{trashUsedStr}</span></span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-neutral-700" />
-                      <span>Free Space: <span className="text-neutral-200">{cloudFreeStr}</span></span>
+
+                    <div className="h-28 w-28 shrink-0 hidden sm:block">
+                      <StorageChart data={driveBreakdownData} />
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
-
-            {user && !loading && (
-              <div className="h-36 w-36 shrink-0">
-                <StorageChart data={driveBreakdownData} />
-              </div>
-            )}
           </motion.div>
-        </motion.section>
 
-        {/* ── Activity Log ── */}
-        <motion.section variants={itemVariants}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-neutral-100">Recent Drive Activity</h3>
-            <button
-              onClick={handleExport}
-              disabled={recentFiles.length === 0}
-              className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-neutral-300 bg-neutral-800 hover:bg-neutral-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Download size={16} />
-              Export
-            </button>
-          </div>
-
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl shadow-sm overflow-hidden">
-            {!user ? (
-              <div className="p-12 text-center">
-                <Cloud className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
-                <p className="text-sm font-medium text-neutral-300">Not connected</p>
-                <p className="text-xs text-neutral-500 mt-1">Connect your Google account to see recent activity</p>
-              </div>
-            ) : loading ? (
-              <div className="space-y-1">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="flex items-center justify-between p-4 rounded-xl border border-transparent animate-pulse">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-neutral-800 rounded-xl" />
-                      <div className="space-y-2">
-                        <div className="h-4 w-40 bg-neutral-800 rounded" />
-                        <div className="h-3 w-24 bg-neutral-800/50 rounded" />
-                      </div>
-                    </div>
-                    <div className="h-3 w-16 bg-neutral-800/50 rounded" />
+          {/* Bento Card 3: Quick Action Hub (4 cols) */}
+          <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-4 bento-block flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-purple-500/10 text-purple-400 rounded-xl">
+                    <Zap size={20} />
                   </div>
-                ))}
-              </div>
-            ) : recentFiles.length > 0 ? (
-              <motion.div variants={containerVariants} initial="hidden" animate="show" className="divide-y divide-neutral-800">
-                {recentFiles.map((item, i) => (
-                  <motion.div
-                    variants={itemVariants}
-                    whileHover={{ x: 4, backgroundColor: 'rgba(38, 38, 38, 0.5)' }}
-                    key={i}
-                    className="p-4 flex items-center justify-between transition-colors duration-150 cursor-pointer group"
-                    onClick={() => {
-                      setPreviewFile({
-                        id: item.id,
-                        name: item.name,
-                        path: item.name, // Path is mocked as name since we don't have local folder structure
-                        mimeType: item.mimeType,
-                        size: formatBytes(parseInt(item.size || '0')),
-                        sizeBytes: parseInt(item.size || '0'),
-                        date: new Date(item.modifiedTime).toLocaleDateString(),
-                        status: 'Synced', // Assume synced since it's in recent drive activity
-                        driveId: item.id,
-                        isDirectory: item.mimeType === 'application/vnd.google-apps.folder',
-                        thumbnailLink: item.thumbnailLink,
-                        iconLink: item.iconLink,
-                      });
-                    }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-lg bg-emerald-500/10 text-emerald-400`}>
-                        {item.iconLink ? (
-                          <img src={item.iconLink} alt="Icon" className="w-[18px] h-[18px] object-contain group-hover:scale-110 transition-transform" />
-                        ) : (
-                          <FileIcon size={18} />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-medium text-neutral-200 text-sm truncate max-w-[200px] group-hover:text-emerald-400 transition-colors" title={item.name}>{item.name}</p>
-                        <p className="text-xs text-neutral-400 flex items-center gap-1 mt-0.5">
-                          <CheckCircle2 size={12} className="text-emerald-400" />
-                          Modified in Cloud
-                        </p>
-                      </div>
-                    </div>
-                    <span className="text-xs text-neutral-500 font-medium group-hover:text-neutral-400 transition-colors">
-                      {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </motion.div>
-                ))}
-              </motion.div>
-            ) : (
-              <div className="p-12 text-center">
-                <div className="flex flex-col items-center justify-center text-neutral-500">
-                  <Clock className="w-10 h-10 mb-3 text-neutral-700" />
-                  <p className="text-sm font-medium text-neutral-300">No recent activity</p>
-                  <p className="text-xs mt-1">Files modified in Drive will appear here.</p>
+                  <div>
+                    <h3 className="font-semibold text-foreground text-base">Action Hub</h3>
+                    <p className="text-xs text-muted-foreground">Instant synchronization tools</p>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        </motion.section>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
+                <button
+                  onClick={handleQuickSync}
+                  disabled={isSyncing || folderEntries.length === 0}
+                  className="bento-subcard flex items-center justify-between p-3 text-left hover:border-primary/50 group transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                      <UploadCloud size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                        Synchronize All
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">Two-way delta sync</p>
+                    </div>
+                  </div>
+                  <ArrowUpRight size={14} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </button>
+
+                <button
+                  onClick={handleQuickAddFolder}
+                  disabled={addingFolder}
+                  className="bento-subcard flex items-center justify-between p-3 text-left hover:border-blue-500/50 group transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                      <FolderOpen size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-foreground group-hover:text-blue-400 transition-colors">
+                        Add Directory
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">Choose local folder</p>
+                    </div>
+                  </div>
+                  <Plus size={14} className="text-muted-foreground group-hover:text-blue-400 transition-colors" />
+                </button>
+
+                <button
+                  onClick={handleExport}
+                  disabled={recentFiles.length === 0}
+                  className="bento-subcard flex items-center justify-between p-3 text-left hover:border-emerald-500/50 group transition-all disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                      <Download size={16} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-foreground group-hover:text-emerald-400 transition-colors">
+                        Export Activity
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">Download CSV report</p>
+                    </div>
+                  </div>
+                  <ArrowUpRight size={14} className="text-muted-foreground group-hover:text-emerald-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck size={14} className="text-emerald-400" />
+                End-to-end Local PKCE
+              </span>
+              <span className="font-mono text-[10px] bg-secondary/80 px-1.5 py-0.5 rounded border border-border/50">v1.0</span>
+            </div>
+          </motion.div>
+
+          {/* Bento Card 4: Recent Drive Activity (8 cols) */}
+          <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-8 bento-block flex flex-col justify-between">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                    <Clock size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground text-base">Recent Drive Activity</h3>
+                    <p className="text-xs text-muted-foreground">Recently modified items in Google Drive</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="Filter activity..."
+                    value={activitySearch}
+                    onChange={(e) => setActivitySearch(e.target.value)}
+                    className="px-2.5 py-1 text-xs bg-secondary/70 border border-border/70 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all w-32 sm:w-44"
+                  />
+                  <button
+                    onClick={handleExport}
+                    disabled={recentFiles.length === 0}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground bg-secondary/80 hover:bg-secondary border border-border/80 rounded-lg transition-colors disabled:opacity-40"
+                  >
+                    <Download size={13} />
+                    <span className="hidden sm:inline">Export</span>
+                  </button>
+                </div>
+              </div>
+
+              {!user ? (
+                <div className="p-8 text-center bento-subcard">
+                  <Cloud className="w-10 h-10 text-muted-foreground/60 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-foreground">Drive Not Connected</p>
+                  <p className="text-xs text-muted-foreground mt-1">Connect your Google account to view recent activity.</p>
+                </div>
+              ) : loading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/40 animate-pulse">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-secondary rounded-lg" />
+                        <div className="space-y-1.5">
+                          <div className="h-3.5 w-36 bg-secondary rounded" />
+                          <div className="h-2.5 w-20 bg-secondary/60 rounded" />
+                        </div>
+                      </div>
+                      <div className="h-3 w-16 bg-secondary/60 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredRecentFiles.length > 0 ? (
+                <div className="divide-y divide-border/60 bento-subcard !p-0 overflow-hidden">
+                  {filteredRecentFiles.map((item, i) => (
+                    <div
+                      key={i}
+                      onClick={() => {
+                        setPreviewFile({
+                          id: item.id,
+                          name: item.name,
+                          path: item.name,
+                          mimeType: item.mimeType,
+                          size: formatBytes(parseInt(item.size || '0')),
+                          sizeBytes: parseInt(item.size || '0'),
+                          date: new Date(item.modifiedTime).toLocaleDateString(),
+                          status: 'Synced',
+                          driveId: item.id,
+                          isDirectory: item.mimeType === 'application/vnd.google-apps.folder',
+                          thumbnailLink: item.thumbnailLink,
+                          iconLink: item.iconLink,
+                        });
+                      }}
+                      className="p-3 sm:px-4 flex items-center justify-between gap-3 hover:bg-secondary/70 transition-colors duration-150 cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+                          {item.iconLink ? (
+                            <img src={item.iconLink} alt="Icon" className="w-4 h-4 object-contain group-hover:scale-110 transition-transform" />
+                          ) : (
+                            <FileIcon size={16} />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground text-xs sm:text-sm truncate group-hover:text-primary transition-colors" title={item.name}>
+                            {item.name}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <CheckCircle2 size={11} className="text-emerald-400" />
+                            Synced to Cloud
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+                        {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-8 text-center bento-subcard">
+                  <Clock className="w-10 h-10 text-muted-foreground/60 mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-foreground">No recent activity</p>
+                  <p className="text-xs text-muted-foreground mt-1">Files synced to Google Drive will appear here.</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </div>
       </motion.div>
 
+      {/* ── File Preview Modal ── */}
       {previewFile && (
         <FilePreviewModal
           file={previewFile}
@@ -457,3 +752,4 @@ export const Dashboard = React.memo(function Dashboard() {
     </div>
   );
 });
+
