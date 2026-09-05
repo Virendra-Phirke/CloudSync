@@ -23,7 +23,6 @@ import dynamic from 'next/dynamic';
 const FilePreviewModal = dynamic(() => import('./FilePreviewModal').then(mod => mod.FilePreviewModal), { ssr: false });
 const ConfirmDialog = dynamic(() => import('./ConfirmDialog').then(mod => mod.ConfirmDialog), { ssr: false });
 const ShareModal = dynamic(() => import('./ShareModal').then(mod => mod.ShareModal), { ssr: false });
-const ConflictResolverModal = dynamic(() => import('./ConflictResolverModal').then(mod => mod.ConflictResolverModal), { ssr: false });
 const SyncIgnoreModal = dynamic(() => import('./SyncIgnoreModal').then(mod => mod.SyncIgnoreModal), { ssr: false });
 
 import { removeSyncState } from '../lib/syncState';
@@ -198,7 +197,7 @@ export const FilesView = React.memo(function FilesView() {
   const userRef = useRef<OAuthUser | null>(null);
   userRef.current = user;
 
-  const { isSyncing: syncing, syncProgressMsg, currentConflicts, resolveConflictFn, startSync, cancelSync } = useSync();
+  const { isSyncing: syncing, syncProgressMsg, startSync, cancelSync } = useSync();
 
   // Multi-folder state
   const [folders, setFolders] = useState<SyncFolder[]>([]);
@@ -1281,16 +1280,6 @@ export const FilesView = React.memo(function FilesView() {
         )}
       </AnimatePresence>
 
-      {/* Conflict Modal */}
-      <AnimatePresence>
-        {currentConflicts.length > 0 && resolveConflictFn && (
-          <ConflictResolverModal
-            isOpen={currentConflicts.length > 0}
-            conflicts={currentConflicts}
-            onResolve={resolveConflictFn}
-          />
-        )}
-      </AnimatePresence>
 
       {/* Pre-Permission Modal */}
       <AnimatePresence>

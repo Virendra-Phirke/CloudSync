@@ -7,6 +7,11 @@ export interface ConflictItem {
   path: string;
   localLastModified: number;
   driveLastModified: number;
+  driveFileId?: string;
+  localFile?: File;
+  localSize?: number;
+  driveSize?: number;
+  mimeType?: string;
 }
 
 // ─── Concurrency pool ───────────────────────────────────────────────────────
@@ -179,7 +184,16 @@ export async function syncBiDirectional(
               } else if (localChanged && driveChanged) {
                 // CONFLICT
                 if (onConflict) {
-                  const resolution = await onConflict([{ path: localInfo.fullPath, localLastModified: localTime, driveLastModified: driveTime }]);
+                  const resolution = await onConflict([{
+                    path: localInfo.fullPath,
+                    localLastModified: localTime,
+                    driveLastModified: driveTime,
+                    driveFileId: driveFile.id,
+                    localFile: file,
+                    localSize: file.size,
+                    driveSize: parseInt(driveFile.size || '0', 10),
+                    mimeType: driveFile.mimeType,
+                  }]);
                   if (resolution === 'local') {
                     const localHash = await calculateFileHash(file);
                     const updated = await updateDriveFile(driveFile.id, file);

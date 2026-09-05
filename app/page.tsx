@@ -16,6 +16,7 @@ const FilesView = dynamic(() => import('../components/FilesView').then(mod => mo
 const AccountsView = dynamic(() => import('../components/AccountsView').then(mod => mod.AccountsView), { loading: () => <LoadingFallback /> });
 const SettingsView = dynamic(() => import('../components/SettingsView').then(mod => mod.SettingsView), { loading: () => <LoadingFallback /> });
 const ThemeSidebar = dynamic(() => import('../components/ThemeSidebar').then(mod => mod.ThemeSidebar), { ssr: false });
+const ConflictResolverModal = dynamic(() => import('../components/ConflictResolverModal').then(mod => mod.ConflictResolverModal), { ssr: false });
 import { handleRedirectCallback } from '../lib/oauth';
 import { useToast } from '../components/ToastContext';
 import { useSync } from '../components/SyncContext';
@@ -73,6 +74,7 @@ export default function Page() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const { showToast } = useToast();
+  const { currentConflicts, resolveConflictFn } = useSync();
 
   useEffect(() => {
     // Process OAuth redirect result on app load
@@ -135,6 +137,13 @@ export default function Page() {
         </AnimatePresence>
       </main>
       <ThemeSidebar isOpen={isThemeOpen} onClose={() => setIsThemeOpen(false)} />
+      {currentConflicts.length > 0 && resolveConflictFn && (
+        <ConflictResolverModal
+          isOpen={currentConflicts.length > 0}
+          conflicts={currentConflicts}
+          onResolve={resolveConflictFn}
+        />
+      )}
     </div>
   );
 }
