@@ -3,7 +3,7 @@ import {
   Search, Folder, MoreVertical, UploadCloud, 
   X, Download, CheckCircle, Check, HardDrive,
   RefreshCw, FolderOpen, CloudOff, Loader2,
-  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown, AlertTriangle, FilePlus, EyeOff
+  LayoutGrid, List, Plus, FolderPlus, ChevronRight, Trash2, Share2, ChevronDown, AlertTriangle, FilePlus, EyeOff, FolderTree
 } from 'lucide-react';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -11,7 +11,7 @@ import { fetchDriveFiles, DriveFile, uploadFileToDrive, deleteDriveFile } from '
 import { initAuth, OAuthUser } from '../lib/oauth';
 import {
   getLocalFolders, getLocalFolderById, pickAndInitFolder, commitLocalFolder, readFolderChildren,
-  LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder,
+  readFolderFiles, LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder,
 } from '../lib/localFolder';
 import { syncBiDirectional, ConflictItem } from '../lib/syncBiDirectional';
 import { useSync } from './SyncContext';
@@ -24,13 +24,14 @@ const FilePreviewModal = dynamic(() => import('./FilePreviewModal').then(mod => 
 const ConfirmDialog = dynamic(() => import('./ConfirmDialog').then(mod => mod.ConfirmDialog), { ssr: false });
 const ShareModal = dynamic(() => import('./ShareModal').then(mod => mod.ShareModal), { ssr: false });
 const SyncIgnoreModal = dynamic(() => import('./SyncIgnoreModal').then(mod => mod.SyncIgnoreModal), { ssr: false });
+const FolderStructureTree = dynamic(() => import('./FolderStructureTree').then(mod => mod.FolderStructureTree), { ssr: false });
 
 import { removeSyncState } from '../lib/syncState';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 type SyncStatus = 'Synced' | 'Syncing' | 'Local Only' | 'Not Synced';
-type ViewMode = 'grid' | 'list';
+type ViewMode = 'grid' | 'list' | 'tree';
 
 type FileItem = {
   id: string;
@@ -203,6 +204,35 @@ export const FilesView = React.memo(function FilesView() {
   const [folders, setFolders] = useState<SyncFolder[]>([]);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [addingFolder, setAddingFolder] = useState(false);
+
+  // Tree View State
+  const [treeFiles, setTreeFiles] = useState<LocalFile[]>([]);
+  const [loadingTree, setLoadingTree] = useState(false);
+
+  const loadTreeFiles = useCallback(async () => {
+    if (!activeFolderId) {
+      setTreeFiles([]);
+      return;
+    }
+    setLoadingTree(true);
+    try {
+      const entry = await getLocalFolderById(activeFolderId);
+      if (entry) {
+        const list = await readFolderFiles(entry.handle);
+        setTreeFiles(list);
+      }
+    } catch (err) {
+      console.error('Failed to load tree files:', err);
+    } finally {
+      setLoadingTree(false);
+    }
+  }, [activeFolderId]);
+
+  useEffect(() => {
+    if (viewMode === 'tree') {
+      loadTreeFiles();
+    }
+  }, [viewMode, activeFolderId, loadTreeFiles]);
 
   // File Deletion State
   const [filesToDelete, setFilesToDelete] = useState<FileItem[] | null>(null);
@@ -766,12 +796,22 @@ export const FilesView = React.memo(function FilesView() {
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-1.5 rounded-lg transition-all duration-200 ${
+                  className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer ${
                     viewMode === 'list' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
                   }`}
                   aria-label="List view"
                 >
                   <List size={15} />
+                </button>
+                <button
+                  onClick={() => setViewMode('tree')}
+                  className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                    viewMode === 'tree' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  aria-label="Tree view"
+                  title="Folder Structure Tree"
+                >
+                  <FolderTree size={15} />
                 </button>
               </div>
               
@@ -1064,7 +1104,7 @@ export const FilesView = React.memo(function FilesView() {
             </div>
 
             {/* Loading state */}
-            {loading ? (
+            {loading || (viewMode === 'tree' && loadingTree) ? (
               <div className="w-full">
                 {viewMode === 'grid' ? (
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2 animate-pulse">
@@ -1094,6 +1134,53 @@ export const FilesView = React.memo(function FilesView() {
                   </div>
                 )}
               </div>
+            ) : viewMode === 'tree' ? (
+              <motion.div
+                key="tree"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="w-full"
+              >
+                <FolderStructureTree
+                  files={treeFiles}
+                  folderName={activeFolder?.name || 'Local Folder'}
+                  searchQuery={searchQuery}
+                  onSelectFile={(f) => {
+                    const item = files.find(file => file.path === f.path) || {
+                      id: f.id,
+                      name: f.name,
+                      type: f.isDirectory ? 'folder' : 'file',
+                      status: 'Local Only',
+                      size: formatBytes(f.size),
+                      sizeBytes: f.size,
+                      date: new Date(f.lastModified).toLocaleDateString(),
+                      modifiedTime: f.lastModified,
+                      path: f.path,
+                      isDirectory: f.isDirectory,
+                      handle: f.handle
+                    };
+                    handleRowClick(item as FileItem);
+                  }}
+                  onPreviewFile={(f) => {
+                    const item = files.find(file => file.path === f.path) || {
+                      id: f.id,
+                      name: f.name,
+                      type: f.isDirectory ? 'folder' : 'file',
+                      status: 'Local Only',
+                      size: formatBytes(f.size),
+                      sizeBytes: f.size,
+                      date: new Date(f.lastModified).toLocaleDateString(),
+                      modifiedTime: f.lastModified,
+                      path: f.path,
+                      isDirectory: f.isDirectory,
+                      handle: f.handle
+                    };
+                    setPreviewFile(item as FileItem);
+                  }}
+                  className="min-h-[500px]"
+                />
+              </motion.div>
             ) : filteredFiles.length > 0 ? (
               <AnimatePresence mode="wait">
                 {viewMode === 'grid' ? (

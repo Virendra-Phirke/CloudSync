@@ -1,10 +1,11 @@
 'use client';
-import { Folder, HardDrive, Cloud, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen, RefreshCw, Plus, ArrowUpRight, Zap, ShieldCheck } from 'lucide-react';
+import { Folder, HardDrive, Cloud, CheckCircle2, Clock, AlertCircle, UploadCloud, File as FileIcon, Download, Loader2, FolderOpen, RefreshCw, Plus, ArrowUpRight, Zap, ShieldCheck, FolderTree } from 'lucide-react';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
 
 const StorageChart = dynamic(() => import('./StorageChart').then(mod => mod.StorageChart), { ssr: false });
+const FolderStructureModal = dynamic(() => import('./FolderStructureModal').then(mod => mod.FolderStructureModal), { ssr: false });
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, addLocalFolder, FolderStats, SyncFolder } from '../lib/localFolder';
@@ -67,6 +68,9 @@ export const Dashboard = React.memo(function Dashboard() {
   const [activitySearch, setActivitySearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
+
+  // Folder Structure Modal
+  const [selectedStructureFolder, setSelectedStructureFolder] = useState<{ id: string; name: string } | null>(null);
 
   // Reset to page 1 whenever user searches
   useEffect(() => {
@@ -525,7 +529,18 @@ export const Dashboard = React.memo(function Dashboard() {
                             )}
                           </div>
                         </div>
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Connected" />
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStructureFolder({ id: entry.folder.id, name: entry.folder.name })}
+                            className="px-2 py-1 rounded-lg bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground text-[11px] font-medium flex items-center gap-1 transition-colors cursor-pointer border border-border/50"
+                            title="Inspect Folder Structure"
+                          >
+                            <FolderTree size={12} className="text-blue-400" />
+                            <span className="hidden sm:inline">Tree</span>
+                          </button>
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" title="Connected" />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -880,6 +895,16 @@ export const Dashboard = React.memo(function Dashboard() {
             'Syncing': { cls: 'bg-sky-500/10 text-sky-400 border-sky-500/20', icon: <Loader2 size={14} className="animate-spin" />, label: 'Syncing' },
             'Error': { cls: 'bg-red-500/10 text-red-400 border-red-500/20', icon: <AlertCircle size={14} />, label: 'Error' },
           }}
+        />
+      )}
+
+      {/* ── Folder Structure Modal ── */}
+      {selectedStructureFolder && (
+        <FolderStructureModal
+          isOpen={!!selectedStructureFolder}
+          onClose={() => setSelectedStructureFolder(null)}
+          folderId={selectedStructureFolder.id}
+          folderName={selectedStructureFolder.name}
         />
       )}
     </div>
