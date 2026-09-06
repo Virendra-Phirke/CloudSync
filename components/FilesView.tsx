@@ -274,7 +274,6 @@ export const FilesView = React.memo(function FilesView() {
   // File Deletion State
   const [filesToDelete, setFilesToDelete] = useState<FileItem[] | null>(null);
   const [deletingFiles, setDeletingFiles] = useState(false);
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
   const [isFabMenuOpen, setIsFabMenuOpen] = useState(false);
   const [addingFiles, setAddingFiles] = useState(false);
   const [showSyncIgnoreModal, setShowSyncIgnoreModal] = useState(false);
@@ -420,8 +419,7 @@ export const FilesView = React.memo(function FilesView() {
     return parts.join('/');
   };
 
-  const proceedWithAddFolder = useCallback(async () => {
-    setShowPermissionModal(false);
+  const handleAddFolder = useCallback(async () => {
     setAddingFolder(true);
     try {
       const handle = await pickAndInitFolder();
@@ -436,13 +434,6 @@ export const FilesView = React.memo(function FilesView() {
       setAddingFolder(false);
     }
   }, [showToast]);
-
-  const handleAddFolder = useCallback(() => {
-    // Directly start picking a folder, we don't need to ask permission 
-    // unless this is a specific design. Wait, the old code showed the permission modal.
-    // I'll keep the permission modal flow to be safe.
-    setShowPermissionModal(true);
-  }, []);
 
   const handleForceSync = useCallback(async () => {
     if (!userRef.current) { showToast('Connect your Google account first.', 'error'); return; }
@@ -1512,44 +1503,6 @@ export const FilesView = React.memo(function FilesView() {
       </AnimatePresence>
 
 
-      {/* Pre-Permission Modal */}
-      <AnimatePresence>
-        {showPermissionModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 max-w-md w-full shadow-2xl"
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                  <AlertTriangle size={20} className="text-blue-400" />
-                </div>
-                <h3 className="text-xl font-bold text-neutral-100">Permission Required</h3>
-              </div>
-              <p className="text-neutral-400 text-sm mb-6 leading-relaxed">
-                In the next step, your browser will ask for permission to view and edit files in the folder you select. <br /><br />
-                <strong className="text-neutral-200">Please click &quot;Allow&quot; on the native browser prompt</strong> to enable CloudSync to synchronize your files.
-              </p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowPermissionModal(false)}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={proceedWithAddFolder}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition-colors shadow-sm shadow-blue-500/20"
-                >
-                  Continue
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* SyncIgnore Editor Modal */}
       <AnimatePresence>

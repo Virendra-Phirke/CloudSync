@@ -6,6 +6,7 @@ import {
   getLocalFolders, getLocalFolderById, getFolderStats,
   SyncFolderEntry, SyncFolder, FolderStats,
 } from '../lib/localFolder';
+import { isDesktop } from '../lib/desktopAdapter';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { useToast } from './ToastContext';
 import { getAppSettings, saveAppSettings, AppSettings } from '../lib/settings';
@@ -85,7 +86,7 @@ export function SettingsView() {
   }, []);
 
   useEffect(() => {
-    if (!('showDirectoryPicker' in window)) {
+    if (!isDesktop() && !('showDirectoryPicker' in window)) {
       setFsApiSupported(false);
       return;
     }

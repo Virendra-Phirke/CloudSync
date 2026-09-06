@@ -9,6 +9,7 @@ const FolderStructureModal = dynamic(() => import('./FolderStructureModal').then
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, addLocalFolder, FolderStats, SyncFolder } from '../lib/localFolder';
+import { isDesktop } from '../lib/desktopAdapter';
 import { FilePreviewModal } from './FilePreviewModal';
 import { useSync } from './SyncContext';
 import { useToast } from './ToastContext';
@@ -149,7 +150,7 @@ export const Dashboard = React.memo(function Dashboard() {
   }, [loadDriveData, loadLocalData]);
 
   const handleQuickAddFolder = async () => {
-    if (!('showDirectoryPicker' in window)) {
+    if (!isDesktop() && !('showDirectoryPicker' in window)) {
       showToast('File System API requires Chrome or Edge', 'error');
       return;
     }

@@ -1,8 +1,9 @@
 'use client';
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
 import { ConflictItem, syncBiDirectional } from '../lib/syncBiDirectional';
 import { useToast } from './ToastContext';
-import { getLocalFolderById } from '../lib/localFolder';
+import { getLocalFolderById, getLocalFolders } from '../lib/localFolder';
+import { isDesktop, getDesktopAPI } from '../lib/desktopAdapter';
 
 interface SyncContextType {
   isSyncing: boolean;
@@ -25,6 +26,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [resolveConflictFn, setResolveConflictFn] = useState<((res: 'local' | 'drive' | 'skip') => void) | null>(null);
   
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isSyncingRef = useRef(false);
+  const pendingSyncFolderIdRef = useRef<string | null>(null);
   const { showToast } = useToast();
 
   const cancelSync = useCallback(() => {
@@ -35,16 +38,24 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const startSync = useCallback(async (folderId: string) => {
-    if (isSyncing) {
-      showToast('A sync is already in progress.', 'error');
+    // Serialization: do not run sync twice concurrently
+    if (isSyncingRef.current) {
+      pendingSyncFolderIdRef.current = folderId;
       return;
     }
     
     cancelSync(); 
     
+    isSyncingRef.current = true;
     setIsSyncing(true);
     setActiveSyncFolderId(folderId);
     setSyncProgressMsg('Starting sync...');
+
+    if (isDesktop()) {
+      try {
+        getDesktopAPI().updateTrayStatus('Syncing with Google Drive...');
+      } catch {}
+    }
     
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -57,6 +68,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         entry.handle, 
         (msg) => { setSyncProgressMsg(msg); },
         (conflicts) => {
+          if (isDesktop() && conflicts.length > 0) {
+            try {
+              getDesktopAPI().showNotification({
+                title: 'CloudSync - Conflict Detected',
+                body: `${conflicts.length} file(s) require conflict resolution.`,
+                type: 'warning',
+              });
+            } catch {}
+          }
           return new Promise<'local' | 'drive' | 'skip'>((resolve) => {
             setCurrentConflicts(conflicts);
             setResolveConflictFn(() => (res: 'local' | 'drive' | 'skip') => {
@@ -71,6 +91,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       
       if (!abortController.signal.aborted) {
         showToast('Sync completed successfully!', 'success');
+        if (isDesktop()) {
+          try {
+            getDesktopAPI().showNotification({
+              title: 'CloudSync',
+              body: 'Synchronization complete with Google Drive',
+              type: 'success',
+            });
+          } catch {}
+        }
       } else {
         showToast('Sync was cancelled.', 'info');
       }
@@ -82,17 +111,77 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         showToast(`Sync failed: ${err.message}`, 'error');
       }
     } finally {
+      isSyncingRef.current = false;
       setIsSyncing(false);
       setSyncProgressMsg('');
       setActiveSyncFolderId(null);
       setCurrentConflicts([]);
       setResolveConflictFn(null);
       abortControllerRef.current = null;
+
+      if (isDesktop()) {
+        try {
+          getDesktopAPI().updateTrayStatus('✓ Synced');
+        } catch {}
+      }
       
-      // Force trigger a custom event so other components (like FilesView) know to reload their file lists
+      // Force trigger custom event so other views refresh
       window.dispatchEvent(new Event('omnisync-sync-completed'));
+
+      // Process any coalesced pending sync request
+      if (pendingSyncFolderIdRef.current) {
+        const nextFolderId = pendingSyncFolderIdRef.current;
+        pendingSyncFolderIdRef.current = null;
+        setTimeout(() => {
+          startSync(nextFolderId);
+        }, 1000);
+      }
     }
-  }, [isSyncing, showToast, cancelSync]);
+  }, [showToast, cancelSync]);
+
+  // Desktop integration: hook into watcher and tray triggers
+  useEffect(() => {
+    if (!isDesktop()) return;
+
+    let unsubEvent: (() => void) | undefined;
+    let unsubTray: (() => void) | undefined;
+
+    try {
+      const api = getDesktopAPI();
+
+      // Watch all active monitored folders
+      getLocalFolders().then((folders) => {
+        for (const f of folders) {
+          const rootId = f.info?.desktopRootId || f.id;
+          api.watchFolder(rootId).catch(() => {});
+        }
+      });
+
+      // File watcher debounced events -> queue sync
+      unsubEvent = api.onFolderEvent(async (event: any) => {
+        const folders = await getLocalFolders();
+        const target = folders.find((f: any) => (f.info?.desktopRootId || f.id) === event.folderPath);
+        if (target) {
+          startSync(target.id);
+        }
+      });
+
+      // Tray "Sync Now" trigger
+      unsubTray = api.onSyncTrigger(async () => {
+        const folders = await getLocalFolders();
+        if (folders.length > 0) {
+          startSync(folders[0].id);
+        }
+      });
+    } catch (err) {
+      console.warn('Could not attach desktop listeners', err);
+    }
+
+    return () => {
+      unsubEvent?.();
+      unsubTray?.();
+    };
+  }, [startSync]);
 
   return (
     <SyncContext.Provider value={{

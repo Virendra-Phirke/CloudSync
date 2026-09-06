@@ -1,0 +1,12 @@
+{
+  "files.watcherExclude": {
+    "**/desktop/electron/out/**": true,
+    "**/desktop/out/**": true,
+    "**/.next/**": true,
+    "**/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/desktop/electron/out/**": true,
+    "**/desktop/out/**": true
+  }
+}

@@ -1,6 +1,6 @@
-'use client';
 import { get, set, del } from 'idb-keyval';
 import ignore, { Ignore } from 'ignore';
+import { isDesktop, getDesktopAPI, createDesktopDirectoryHandle } from './desktopAdapter';
 
 // Legacy keys (for migration)
 const LEGACY_HANDLE_KEY = 'local_sync_folder_handle';
@@ -18,11 +18,12 @@ export interface SyncFolder {
   id: string;
   name: string;
   savedAt: number;
+  desktopRootId?: string;
 }
 
 export interface SyncFolderEntry {
   id: string;
-  handle: FileSystemDirectoryHandle;
+  handle: any;
   info: SyncFolder;
 }
 
@@ -107,7 +108,7 @@ async function migrateLegacyFolder(): Promise<void> {
         },
       };
       entry.info.id = entry.id;
-      await set(FOLDERS_KEY, [entry]);
+      await saveFolders([entry]);
       // Clean up legacy keys
       await del(LEGACY_HANDLE_KEY);
       await del(LEGACY_INFO_KEY);
@@ -115,6 +116,35 @@ async function migrateLegacyFolder(): Promise<void> {
   } catch {
     // Migration failed silently — no legacy data or corrupted
   }
+}
+
+/**
+ * Sanitizes and persists folder entries to IndexedDB.
+ * On desktop (or when duck-typed handles with methods are used), function properties
+ * cannot be structured-cloned by IDBObjectStore.
+ * We store `handle: null` in IndexedDB, and `getLocalFolders()` dynamically re-creates
+ * the active desktop directory handles upon retrieval.
+ */
+async function saveFolders(folders: SyncFolderEntry[]): Promise<void> {
+  const serializable = folders.map((entry) => {
+    const isDuckTyped =
+      isDesktop() ||
+      Boolean(entry.info?.desktopRootId) ||
+      !entry.handle ||
+      (typeof entry.handle.queryPermission === 'function' &&
+        !(typeof FileSystemHandle !== 'undefined' && entry.handle instanceof FileSystemHandle));
+
+    if (isDuckTyped) {
+      return {
+        id: entry.id,
+        info: entry.info,
+        handle: null,
+      };
+    }
+    return entry;
+  });
+
+  await set(FOLDERS_KEY, serializable);
 }
 
 // ─── Multi-Folder CRUD ───────────────────────────────────────────────────────
@@ -130,6 +160,15 @@ export async function getLocalFolders(): Promise<SyncFolderEntry[]> {
       folders = await get(FOLDERS_KEY);
     }
     
+    if (folders && isDesktop()) {
+      for (const entry of folders) {
+        if (entry.info?.desktopRootId || (!entry.handle || !entry.handle.entries)) {
+          const rootId = entry.info?.desktopRootId || entry.id;
+          entry.handle = createDesktopDirectoryHandle(rootId, '', entry.info.name);
+        }
+      }
+    }
+
     return folders || [];
   } catch {
     return [];
@@ -147,6 +186,14 @@ export async function getLocalFolderById(id: string): Promise<SyncFolderEntry | 
   const folders = await getLocalFolders();
   const entry = folders.find(f => f.id === id);
   if (!entry) return null;
+
+  if (isDesktop()) {
+    if (!entry.handle || !entry.handle.entries) {
+      const rootId = entry.info?.desktopRootId || entry.id;
+      entry.handle = createDesktopDirectoryHandle(rootId, '', entry.info.name);
+    }
+    return entry;
+  }
 
   try {
     let perm = await (entry.handle as any).queryPermission({ mode: 'readwrite' });
@@ -790,7 +837,34 @@ certs/
 `;
 
 /** Prompts user to pick a directory and initializes .syncignore without saving to DB. */
-export async function pickAndInitFolder(): Promise<FileSystemDirectoryHandle | null> {
+export async function pickAndInitFolder(): Promise<any> {
+  if (isDesktop()) {
+    try {
+      const api = getDesktopAPI();
+      const res = await api.selectFolder();
+      if (!res) return null;
+      const handle = createDesktopDirectoryHandle(res.rootId, '', res.name);
+      
+      // Initialize .syncignore if it doesn't exist
+      try {
+        await handle.getFileHandle('.syncignore');
+      } catch {
+        try {
+          const ignoreHandle = await handle.getFileHandle('.syncignore', { create: true });
+          const writable = await ignoreHandle.createWritable();
+          await writable.write(DEFAULT_SYNCIGNORE);
+          await writable.close();
+        } catch (err) {
+          console.warn('Could not create default .syncignore:', err);
+        }
+      }
+      return handle;
+    } catch (err) {
+      console.error('Desktop folder selection error', err);
+      throw err;
+    }
+  }
+
   if (!('showDirectoryPicker' in window)) {
     throw new Error(
       'Your browser does not support the File System Access API. Please use Chrome or Edge.'
@@ -824,12 +898,13 @@ export async function pickAndInitFolder(): Promise<FileSystemDirectoryHandle | n
 }
 
 /** Saves a directory handle to the application's local folder list. */
-export async function commitLocalFolder(handle: FileSystemDirectoryHandle): Promise<SyncFolderEntry> {
+export async function commitLocalFolder(handle: any): Promise<SyncFolderEntry> {
   const id = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const desktopRootId = handle?.rootId || (isDesktop() ? id : undefined);
   const entry: SyncFolderEntry = {
     id,
     handle,
-    info: { id, name: handle.name, savedAt: Date.now() },
+    info: { id, name: handle.name, savedAt: Date.now(), desktopRootId },
   };
   
   const existing = await getLocalFolders();
@@ -839,7 +914,7 @@ export async function commitLocalFolder(handle: FileSystemDirectoryHandle): Prom
   }
   
   const updated = [...existing, entry];
-  await set(FOLDERS_KEY, updated);
+  await saveFolders(updated);
   
   return entry;
 }
@@ -855,7 +930,7 @@ export async function addLocalFolder(): Promise<SyncFolderEntry | null> {
 export async function removeLocalFolder(id: string): Promise<void> {
   const existing = await getLocalFolders();
   const filtered = existing.filter(f => f.id !== id);
-  await set(FOLDERS_KEY, filtered);
+  await saveFolders(filtered);
 }
 
 /** Clear all folder entries. */
@@ -874,6 +949,9 @@ export async function getLocalFolder(): Promise<FileSystemDirectoryHandle | null
   if (folders.length === 0) return null;
   
   const entry = folders[0];
+  if (isDesktop()) {
+    return entry.handle;
+  }
   try {
     let perm = await (entry.handle as any).queryPermission({ mode: 'readwrite' });
     if (perm !== 'granted') {

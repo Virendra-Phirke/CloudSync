@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { encryptPayload } from '@/lib/serverCrypto';
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
@@ -19,10 +20,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/?auth_error=missing_params', request.url));
   }
 
-  // CSRF validation
-  const storedState = request.cookies.get('g_oauth_state')?.value;
-  if (!storedState || storedState !== state) {
-    return NextResponse.redirect(new URL('/?auth_error=state_mismatch', request.url));
+  const isDesktopAuth = state && state.startsWith('desk.');
+  let desktopState: { state: string; challenge: string } | null = null;
+
+  if (isDesktopAuth) {
+    try {
+      const jsonStr = Buffer.from(state.slice(5), 'base64url').toString('utf8');
+      desktopState = JSON.parse(jsonStr);
+    } catch {
+      return NextResponse.redirect(new URL('/api/auth/desktop/success?error=invalid_state', request.url));
+    }
+  } else {
+    // Web CSRF validation
+    const storedState = request.cookies.get('g_oauth_state')?.value;
+    if (!storedState || storedState !== state) {
+      return NextResponse.redirect(new URL('/?auth_error=state_mismatch', request.url));
+    }
   }
 
   // Exchange authorization code for tokens
@@ -63,6 +76,21 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     console.error('User info fetch error:', err);
     return NextResponse.redirect(new URL('/?auth_error=userinfo_failed', request.url));
+  }
+
+  if (isDesktopAuth && desktopState) {
+    const tempCode = encryptPayload({
+      challenge: desktopState.challenge,
+      googleRefreshToken: tokens.refresh_token,
+      user: userInfo,
+      initialAccessToken: tokens.access_token,
+      expiresAt: Date.now() + 120000, // 2 minutes to complete exchange
+    });
+
+    const successUrl = new URL('/api/auth/desktop/success', request.url);
+    successUrl.searchParams.set('code', tempCode);
+    successUrl.searchParams.set('state', desktopState.state);
+    return NextResponse.redirect(successUrl);
   }
 
   const isProd = process.env.NODE_ENV === 'production';

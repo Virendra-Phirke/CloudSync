@@ -1,0 +1,27 @@
+{
+  "name": "cloudsync-desktop",
+  "version": "1.0.0",
+  "description": "CloudSync Windows Desktop Application",
+  "main": "dist/main/main.js",
+  "author": "Virendra Phirke",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "start": "electron .",
+    "package": "npm run build && electron-forge package",
+    "make": "npm run build && electron-forge make"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.7.0",
+    "@electron-forge/maker-squirrel": "^7.7.0",
+    "@electron-forge/maker-zip": "^7.7.0",
+    "@types/node": "^20.17.19",
+    "electron": "^34.2.0",
+    "innosetup-compiler": "^6.3.1",
+    "typescript": "^5.7.3"
+  }
+}

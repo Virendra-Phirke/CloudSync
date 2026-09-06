@@ -1,115 +1,178 @@
+# ☁️ CloudSync
+
 <div align="center">
-  <img src="https://via.placeholder.com/1200x300.png?text=CloudSync+-+Seamless+Browser-Based+File+Sync" alt="CloudSync Banner" />
 
-  # ☁️ CloudSync
+**Next-Generation Bi-Directional Cloud File Synchronization**  
+*Seamlessly synchronize local directories with Google Drive via modern browser APIs or a native Windows background client.*
 
-  *A powerful, modern, web-based, bi-directional file synchronization application.*
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19.2-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Electron](https://img.shields.io/badge/Electron-34-47848F?style=for-the-badge&logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![Google Drive](https://img.shields.io/badge/Google_Drive-API_v3-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://developers.google.com/drive)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-  [![Next.js](https://img.shields.io/badge/Next.js-16+-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
-  [![React](https://img.shields.io/badge/React-19-blue?style=for-the-badge&logo=react)](https://react.dev/)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-  [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com/)
-  [![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 </div>
-
-<br />
-
-CloudSync seamlessly bridges the gap between your local file system and cloud storage directly from the browser. No desktop client installation required. By utilizing the modern Web File System Access API, it brings native-like sync capabilities right to your web browser.
 
 ---
 
-## 🎯 Why CloudSync?
+## 🌟 Overview
 
-- **Zero Installation**: Sync your files without downloading hefty desktop applications.
-- **Privacy First**: Files are synchronized directly between your local machine and cloud storage. No intermediary servers hold your files.
-- **Granular Control**: Manage conflicts manually or use `.syncignore` to ensure only the right files are synced.
+**CloudSync** is a modern, high-performance file synchronization platform designed to bridge local filesystems and cloud storage. It offers two first-class operational modes:
+
+1. **🌐 Web Application (Zero Installation)**: Runs entirely within modern Chromium-based browsers (Chrome, Edge, Opera, Brave) utilizing the **W3C File System Access API**. No agent or desktop client installation required.
+2. **🖥️ Native Windows Desktop Application**: Built with **Electron** and **TypeScript**, providing native file access, debounced continuous background file watching (`chokidar`), Windows System Tray minimization, native toast notifications, and Windows DPAPI encrypted credential storage.
 
 ---
 
 ## ✨ Key Features
 
-- **🔄 Bi-directional Sync**: Real-time or manual synchronization between local directories and the cloud.
-- **📁 Native File System Access**: Leverages the modern web File System Access API to securely interact with local folders directly.
-- **⚔️ Smart Conflict Resolution**: An interactive UI to intelligently resolve collisions when files are modified both locally and remotely.
-- **🚫 `.syncignore` Support**: Fully customizable ignore patterns using `.syncignore` (similar to `.gitignore`) to exclude `node_modules`, temp files, or private data.
-- **👁️ Rich File Previews**: Built-in viewing capabilities for PDFs, Word documents (`.docx`), Images, and Text/Code without ever leaving the app.
-- **📊 Storage Analytics**: Beautiful, interactive charts visualizing your storage usage and file distributions.
-- **🔋 Wake Lock Management**: Utilizes the Screen Wake Lock API to prevent the device from going to sleep during prolonged synchronization tasks.
-- **⚡ High-Performance Virtualization**: Smoothly renders massive directories containing thousands of files using virtualized lists.
-- **🧠 AI Integration**: Integrates Google GenAI capabilities for smart data processing.
+### 🔄 Intelligent Bi-Directional Synchronization
+- **MD5 Content Hashing**: Compares file content hashes (`spark-md5` client-side / Google Drive MD5 checksums) rather than relying solely on timestamps.
+- **Fast Diffing Engine**: Accurately detects local additions, remote additions, modifications, and deletions.
+- **Batched & Serialized Execution**: Prevents race conditions and duplicate uploads/downloads across concurrent triggers.
+
+### ⚔️ Interactive Conflict Resolution
+- Real-time side-by-side modal for files modified concurrently both locally and remotely.
+- Displays file sizes, timestamps, and modification history to help you decide which version to keep.
+- One-click bulk resolution options (e.g. *Keep All Local*, *Keep All Remote*).
+
+### 🖥️ Dedicated Windows Desktop Client
+- **Background File Watcher**: Monitors active sync folders using `chokidar` with debounced event coalescing (800ms quiet window) to prevent thrashing during rapid IDE saves.
+- **System Tray Integration**: Operates quietly in the Windows notification area with live sync status indicators, quick sync actions, and one-click folder navigation.
+- **Close-to-Tray**: Minimizes to the background tray when closed so sync schedules remain uninterrupted.
+- **Native Toast Notifications**: Provides instant Windows balloon and notification updates when sync operations complete or encounter conflicts.
+- **Windows Installer**: Production packaging via Electron Forge and Inno Setup for a complete standalone `.exe` installer.
+
+### 🛡️ Enterprise Security & Privacy
+- **OAuth 2.0 PKCE Flow**: Complete PKCE authorization code exchange keeping client secrets secure on the server.
+- **Windows DPAPI Protection**: Desktop sessions encrypt refresh tokens at rest using Electron's native `safeStorage` (Windows Data Protection API).
+- **Trusted Root Sandbox**: Desktop IPC requests validate all file access against cryptographic root IDs, preventing path traversal attacks outside selected folders.
+- **Direct Cloud Sync**: Local files transfer directly between your machine and Google Drive without intermediate third-party storage.
+
+### 🚫 Robust `.syncignore` Engine
+- Exclude build artifacts, large binaries, or sensitive folders (e.g. `node_modules/`, `.git/`, `dist/`, `.env*`).
+- Full standard `.gitignore` pattern matching support powered by `ignore`.
+
+### 👁️ Rich In-App Previews
+- **PDF Previews**: In-browser rendering powered by `pdfjs-dist`.
+- **Word Documents**: `.docx` document parsing and previewing via `mammoth`.
+- **Code & Text**: Syntax-highlighted viewer for source code and markdown documents.
+- **Images**: Responsive, high-fidelity image inspection.
+
+### 📊 Storage Analytics & Telemetry
+- Interactive storage breakdowns visualized with **Recharts**.
+- Real-time quota metrics (cloud quota consumed vs. available storage).
+- File type distribution charts and sync performance telemetry.
+
+### ⚡ Extreme Scale & Performance
+- **List Virtualization**: Renders directories containing tens of thousands of files effortlessly via `@tanstack/react-virtual`.
+- **Screen Wake Lock API**: Automatically prevents system sleep during heavy sync transfers in browser mode.
+
+---
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    subgraph Client Layer
+        UI[CloudSync Next.js & React 19 Frontend]
+        VFS[Virtual File System & Previews]
+        SyncEngine[Bi-Directional Diff & Sync Engine]
+    end
+
+    subgraph Platform Abstraction
+        Adapter{Platform Bridge}
+        WebFS[W3C File System Access API]
+        DesktopBridge[Electron ContextBridge IPC]
+    end
+
+    subgraph Native Windows Desktop
+        MainProcess[Electron Main Process]
+        Watcher[Chokidar Background Watcher]
+        Tray[Windows System Tray & Notifications]
+        SafeStorage[Windows DPAPI safeStorage]
+        TrustedRoots[Trusted Roots File Manager]
+    end
+
+    subgraph Cloud Storage
+        DriveAPI[Google Drive REST API v3]
+        AuthServer[Next.js Auth & PKCE Server Endpoints]
+    end
+
+    UI --> SyncEngine
+    UI --> VFS
+    SyncEngine --> Adapter
+    Adapter -->|Browser Mode| WebFS
+    Adapter -->|Desktop Mode| DesktopBridge
+
+    DesktopBridge <==>|Secure IPC| MainProcess
+    MainProcess --> Watcher
+    MainProcess --> Tray
+    MainProcess --> SafeStorage
+    MainProcess --> TrustedRoots
+
+    SyncEngine <==>|Direct Transfer| DriveAPI
+    UI <==>|OAuth 2.0 PKCE| AuthServer
+    AuthServer <==> DriveAPI
+```
 
 ---
 
 ## 🛠️ Tech Stack
 
-### Frontend & Core
-- **Framework**: [Next.js](https://nextjs.org/) & [React 19](https://react.dev/)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) & [Framer Motion](https://motion.dev/)
-- **Icons**: [Lucide React](https://lucide.dev/)
-
-### Backend & Data
-- **Backend Services**: Next.js API Routes, [Firebase](https://firebase.google.com/)
-- **AI / Machine Learning**: `@google/genai`
-- **Local Data**: IndexedDB (`idb-keyval`) for efficient metadata and state persistence
-
-### Utilities
-- **Virtualization**: `@tanstack/react-virtual` for windowing large lists
-- **File Processing**: `spark-md5` (fast client-side file hashing), `pdfjs-dist` & `mammoth` (document previews)
-- **Data Visualization**: `recharts`
+| Domain | Technology | Description |
+| :--- | :--- | :--- |
+| **Framework** | [Next.js 16 (App Router)](https://nextjs.org/) | Hybrid SSR & client runtime |
+| **UI Library** | [React 19](https://react.dev/) | Core UI and state management |
+| **Desktop Platform** | [Electron 34](https://www.electronjs.org/) | Native Windows desktop runtime |
+| **Language** | [TypeScript 5.9](https://www.typescriptlang.org/) | Strict end-to-end type safety |
+| **Styling** | [Tailwind CSS v4](https://tailwindcss.com/) & [Motion](https://motion.dev/) | Modern utility styles and micro-animations |
+| **Cloud Storage** | [Google Drive API v3](https://developers.google.com/drive) | Remote file and metadata storage |
+| **Desktop File Watcher** | [Chokidar](https://github.com/paulmillr/chokidar) | Debounced cross-platform filesystem watcher |
+| **Local Cache** | [idb-keyval](https://github.com/jakearchibald/idb-keyval) | IndexedDB storage for file metadata |
+| **Hashing** | [spark-md5](https://github.com/satazor/js-spark-md5) | High-speed incremental MD5 calculation |
+| **Document Previews** | `pdfjs-dist` & `mammoth` | PDF and DOCX document renderers |
+| **Visualizations** | [Recharts](https://recharts.org/) | Interactive telemetry and storage charts |
+| **List Virtualization** | `@tanstack/react-virtual` | High-performance virtualized DOM lists |
 
 ---
 
-## 🏗️ Architecture & Workflow
+## 📁 Project Structure
 
-### High-Level Architecture
-
-```mermaid
-graph TD
-    User([User]) --> UI[Web Interface Next.js]
-    
-    subgraph Browser Client
-        UI --> SyncEngine[Bi-directional Sync Engine]
-        UI --> VFS[Virtual File System]
-        SyncEngine --> Cache[(IndexedDB Cache)]
-        SyncEngine --> HashEngine[MD5 Hash Generator]
-        VFS --> Previews[File Preview Generators]
-    end
-
-    subgraph Local Environment
-        SyncEngine <--> |File System Access API| LocalStorage[Local Disk / Folders]
-    end
-
-    subgraph Cloud Environment
-        SyncEngine <--> |Google Drive / Firebase| CloudStorage[(Cloud Storage)]
-        UI <--> |OAuth 2.0| NextAuthAPI[Next.js Auth APIs]
-    end
-```
-
-### Sync Resolution Workflow
-
-```mermaid
-sequenceDiagram
-    participant Local as Local Folder
-    participant Sync as Sync Engine
-    participant Cloud as Cloud Storage
-    
-    Sync->>Local: Scan directory & calculate hashes
-    Sync->>Cloud: Fetch remote metadata & hashes
-    Sync->>Sync: Compare Local vs Cloud (Diffing)
-    
-    alt File only exists locally
-        Sync->>Cloud: Upload File
-    else File only exists in cloud
-        Sync->>Local: Download File
-    else File modified in both (Conflict)
-        Sync->>UI: Prompt User for Conflict Resolution
-        UI-->>Sync: User Selects Winner (Local or Remote)
-        Sync->>Local: Apply resolution
-        Sync->>Cloud: Apply resolution
-    else Files match
-        Sync->>Sync: Mark as Synced
-    end
+```text
+omnisync/
+├── app/                        # Next.js App Router
+│   ├── api/auth/               # OAuth 2.0 & PKCE auth endpoints
+│   │   ├── desktop/            # Desktop PKCE token exchange & refresh
+│   │   └── callback/google/    # Web OAuth redirect handler
+│   ├── layout.tsx              # Root HTML layout and metadata
+│   └── page.tsx                # Main entry view
+├── components/                 # React components
+│   ├── Dashboard.tsx           # Primary dashboard layout
+│   ├── FilesView.tsx           # Virtualized file explorer & previews
+│   ├── SettingsView.tsx        # Sync & account configuration
+│   ├── StorageView.tsx         # Storage analytics and charts
+│   ├── SyncContext.tsx         # State provider & sync engine coordinator
+│   └── modals/                 # Conflict resolution & preview modals
+├── desktop/                    # Native Windows Desktop Client
+│   ├── electron/               # Electron main, preload, and services
+│   │   ├── main/               # Window lifecycle, IPC handlers, system tray
+│   │   ├── preload/            # contextBridge secure API exposure
+│   │   ├── services/           # File watcher, auth, storage, notifications
+│   │   ├── utils/              # Path sanitization, logger, icon resolver
+│   │   ├── forge.config.js     # Electron Forge packaging configuration
+│   │   └── installer.iss       # Inno Setup Windows installer script
+│   └── scripts/                # Development & build automation runners
+├── lib/                        # Core utilities & services
+│   ├── desktopAdapter.ts       # Unified adapter mapping FileSystemHandle to desktop IPC
+│   ├── drive.ts                # Google Drive REST API client
+│   ├── localFolder.ts          # Web File System Access API manager
+│   ├── oauth.ts                # Cross-platform authentication helper
+│   ├── serverCrypto.ts         # AES-256-GCM token encryption
+│   └── syncEngine.ts           # Hash-based diffing & bi-directional sync engine
+└── types/                      # TypeScript declarations (Desktop IPC & Models)
 ```
 
 ---
@@ -117,62 +180,116 @@ sequenceDiagram
 ## 🚀 Getting Started
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (v20+ recommended)
-- A Google Cloud Console project (for Drive API and OAuth 2.0 credentials)
-- Firebase Project (for Firebase services)
+- **Node.js** v20 or higher
+- **npm** v10 or higher
+- A **Google Cloud Console** project with **Google Drive API** enabled
 
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/Virendra-Phirke/CloudSync.git
-   cd CloudSync
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Environment Setup:**
-   Create a `.env.local` file in the root directory and configure your credentials:
-   ```env
-   # Google OAuth Configuration
-   GOOGLE_CLIENT_ID="your_google_client_id_here"
-   GOOGLE_CLIENT_SECRET="your_google_client_secret_here"
-   APP_URL="http://localhost:3000"
-   GOOGLE_REDIRECT_URI="http://localhost:3000/api/auth/callback/google"
-   
-   # Firebase Configuration
-   # (Add your Firebase env variables here)
-   ```
-
-4. **Run the development server:**
-   ```bash
-   npm run dev
-   ```
-
-5. **Open Application**: Navigate to [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## 💡 Usage Guide
-
-1. **Authenticate**: Log in with your account to grant CloudSync access to your cloud storage.
-2. **Select Local Folder**: Use the UI to pick a local folder on your machine that you want to sync.
-3. **Configure `.syncignore`**: Add a `.syncignore` file in your local folder to ignore specific files/directories (e.g., `node_modules/`, `.git/`).
-4. **Sync**: Click the "Sync" button. CloudSync will analyze differences, prompt you to resolve any conflicts, and keep your files up-to-date!
-
----
-
-## 📁 Project Structure
-
-```text
-├── app/                  # Next.js App Router and API routes
-├── components/           # Reusable React components (UI, Modals, Views)
-├── hooks/                # Custom React hooks (e.g., useMockAnalytics.ts)
-├── lib/                  # Core business logic and utilities
-├── modules/              # Feature modules (e.g., analytics)
-├── public/               # Static assets
-└── scripts/              # Build and utility scripts
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Virendra-Phirke/CloudSync.git
+cd CloudSync
 ```
+
+### 2. Install Dependencies
+```bash
+npm install
+```
+
+### 3. Configure Environment Variables
+Create a `.env.local` file in the project root:
+
+```env
+# Google OAuth 2.0 Credentials (from Google Cloud Console)
+GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET="your-client-secret"
+GOOGLE_REDIRECT_URI="http://localhost:3000/api/auth/callback/google"
+
+# Application URL
+APP_URL="http://localhost:3000"
+
+# Optional: Custom encryption secret for desktop auth tokens (defaults to GOOGLE_CLIENT_SECRET)
+SESSION_SECRET="your-strong-random-session-secret"
+
+# Optional: Gemini API Key for AI features
+GEMINI_API_KEY="your-gemini-api-key"
+```
+
+> **Google OAuth Configuration Tip:**  
+> In your Google Cloud Console OAuth 2.0 client credentials, ensure the following **Authorized Redirect URIs** are registered:
+> - `http://localhost:3000/api/auth/callback/google` (for Web OAuth flow)
+> - Your production URL callback (e.g. `https://your-domain.com/api/auth/callback/google`)
+
+---
+
+## 💻 Running the Application
+
+### Option A: Web Application
+Start the Next.js development server:
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) in **Google Chrome**, **Microsoft Edge**, or any browser supporting the File System Access API.
+
+### Option B: Windows Desktop Application
+Launch the standalone desktop application in development mode:
+```bash
+npm run desktop:dev
+```
+*This command verifies that the Next.js server is ready, compiles desktop TypeScript, and launches the Electron application with active DevTools.*
+
+---
+
+## 📦 Building for Production
+
+### Build Web Application
+```bash
+npm run build
+npm run start
+```
+
+### Build Windows Desktop App & Installer
+```bash
+npm run desktop:build
+```
+This script compiles the production web app, builds the desktop assets, and generates the Windows distributable via Electron Forge into `desktop/electron/out/`.
+
+For full details on desktop packaging, Inno Setup installers, and architecture, refer to the [Desktop Documentation](desktop/electron/README.md).
+
+---
+
+## 📜 Available Scripts
+
+| Script | Command | Description |
+| :--- | :--- | :--- |
+| `npm run dev` | `next dev` | Starts Next.js development server |
+| `npm run build` | `next build` | Compiles production Next.js bundle |
+| `npm run start` | `next start` | Runs production Next.js server |
+| `npm run lint` | `eslint .` | Runs ESLint checks |
+| `npm run desktop:dev` | `node desktop/scripts/dev.js` | Launches Electron desktop app in development |
+| `npm run desktop:build`| `node desktop/scripts/build.js`| Builds standalone Windows desktop application |
+
+---
+
+## 🔒 Security & Privacy
+
+- **No Third-Party Intermediaries**: Your files never pass through external storage servers. All transfers occur directly between your local machine and Google Drive.
+- **Zero Exposed Secrets**: `GOOGLE_CLIENT_SECRET` and authorization keys remain exclusively on server-side Next.js endpoints. Desktop clients authenticate securely via PKCE.
+- **Credential Storage**: Desktop refresh tokens are stored encrypted using Windows DPAPI (`safeStorage`).
+- **Sandboxed File Access**: The desktop client restricts filesystem operations strictly to explicitly selected user folders via a secure root ID mapping.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! If you'd like to report an issue or submit a feature request:
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m "feat: add amazing feature"`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
+5. Open a Pull Request.
+
+---
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).

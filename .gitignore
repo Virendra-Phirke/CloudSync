@@ -10,3 +10,11 @@ firebase-applet-config.json
 docs/
 .agents/
 *.tsbuildinfo
+
+# Desktop Build Artifacts
+desktop/electron/node_modules/
+desktop/electron/dist/
+desktop/electron/out/
+desktop/electron/out_dist/
+desktop/electron/standalone/
+.desktop-data/
