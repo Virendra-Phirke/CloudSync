@@ -150,6 +150,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     let unsubEvent: (() => void) | undefined;
     let unsubTray: (() => void) | undefined;
+    let unsubBg: (() => void) | undefined;
 
     try {
       const api = getDesktopAPI();
@@ -167,7 +168,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         const folders = await getLocalFolders();
         const target = folders.find((f: any) => (f.info?.desktopRootId || f.id) === event.folderPath);
         if (target) {
-          startSync(target.id);
+          startSync(target.id, target.info?.provider || 'google');
         }
       });
 
@@ -175,7 +176,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       unsubTray = api.onSyncTrigger(async () => {
         const folders = await getLocalFolders();
         if (folders.length > 0) {
-          startSync(folders[0].id);
+          for (const f of folders) {
+            await startSync(f.id, f.info?.provider || 'google');
+          }
+        }
+      });
+
+      // Background Eco Mode handler: trim renderer memory
+      unsubBg = api.onBackgroundModeChanged?.((payload: { inBackground: boolean }) => {
+        if (payload.inBackground) {
+          if (typeof window !== 'undefined' && typeof (window as any).gc === 'function') {
+            try {
+              (window as any).gc();
+            } catch {}
+          }
         }
       });
     } catch (err) {
@@ -185,6 +199,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubEvent?.();
       unsubTray?.();
+      unsubBg?.();
     };
   }, [startSync]);
 

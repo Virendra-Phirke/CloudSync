@@ -9,6 +9,10 @@ import { logger } from '../utils/logger';
 async function bootstrap() {
   logger.info('SYNC', 'Starting CloudSync Desktop Application...');
 
+  // Configure Chromium flags for Background Eco Mode (50-100MB RAM target)
+  app.commandLine.appendSwitch('js-flags', '--expose-gc');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding', 'false');
+
   const canContinue = setupLifecycle();
   if (!canContinue) return;
 

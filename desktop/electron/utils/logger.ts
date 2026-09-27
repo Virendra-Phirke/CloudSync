@@ -6,6 +6,8 @@ type LogScope =
   | 'AUTH'
   | 'FILESYSTEM'
   | 'TRAY'
+  | 'MEMORY'
+  | 'STARTUP'
   | 'ERROR';
 
 const SENSITIVE_PATTERNS = [

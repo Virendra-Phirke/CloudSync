@@ -59,6 +59,8 @@ export interface DesktopStorageSettings {
   startMinimizedToTray: boolean;
   notifyOnComplete: boolean;
   autoSyncOnWatch: boolean;
+  openAtLogin?: boolean;
+  ecoMode?: boolean;
 }
 
 export interface DesktopUser {
@@ -90,9 +92,17 @@ export interface CloudSyncDesktopAPI {
   stopWatchingFolder: (folderPath: string) => Promise<boolean>;
   getSyncStatus: () => Promise<DesktopSyncStatus>;
   updateTrayStatus: (status: string) => Promise<void>;
+  startup: {
+    getSettings: () => Promise<{ openAtLogin: boolean; openAsHidden: boolean }>;
+    setSettings: (settings: { openAtLogin: boolean; openAsHidden?: boolean }) => Promise<boolean>;
+  };
+  quitApp: () => Promise<void>;
+  hideWindow: () => Promise<void>;
+  showWindow: () => Promise<void>;
   onFolderEvent: (callback: (event: DesktopFolderWatcherEvent) => void) => () => void;
   onSyncTrigger: (callback: () => void) => () => void;
   onAuthChanged: (callback: (payload: { user: DesktopUser | null }) => void) => () => void;
+  onBackgroundModeChanged?: (callback: (payload: { inBackground: boolean }) => void) => () => void;
 }
 
 declare global {

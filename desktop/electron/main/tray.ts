@@ -1,8 +1,10 @@
-import { Tray, Menu, nativeImage, NativeImage, app, shell } from 'electron';
+import { Tray, Menu, nativeImage, NativeImage, app, shell, BrowserWindow } from 'electron';
 import { getIconPath } from '../utils/paths';
 import { getMainWindow, createMainWindow, setAppIsQuitting } from './window';
 import { logger } from '../utils/logger';
 import { storageService } from '../services/storageService';
+import { startupService } from '../services/startupService';
+import { memoryManager } from '../services/memoryManager';
 
 let tray: Tray | null = null;
 let currentStatusLabel = '✓ Synced';
@@ -12,28 +14,39 @@ export function updateTrayStatus(statusLabel: string) {
   renderTrayMenu();
 }
 
-async function showOrFocusWindow() {
+async function showOrFocusWindow(): Promise<BrowserWindow> {
   const win = getMainWindow() || (await createMainWindow());
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
+  renderTrayMenu();
+  return win;
 }
 
-function renderTrayMenu() {
+export async function renderTrayMenu() {
   if (!tray) return;
+
+  const win = getMainWindow();
+  const isWindowVisible = win && !win.isDestroyed() && win.isVisible();
+  const isStartupEnabled = await startupService.isEnabled();
+  const inEcoMode = memoryManager.isBackground() || !isWindowVisible;
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'CloudSync',
+      label: 'CloudSync (Background Service)',
       enabled: false,
     },
     {
-      label: currentStatusLabel,
+      label: `● ${currentStatusLabel}`,
+      enabled: false,
+    },
+    {
+      label: inEcoMode ? '🍃 Background Eco Mode (50–100 MB Target)' : '💻 Window Active',
       enabled: false,
     },
     { type: 'separator' },
     {
-      label: 'Open CloudSync',
+      label: isWindowVisible ? 'Focus CloudSync' : 'Open CloudSync',
       click: () => {
         showOrFocusWindow();
       },
@@ -41,15 +54,19 @@ function renderTrayMenu() {
     {
       label: 'Sync Now',
       click: () => {
-        const win = getMainWindow();
-        if (win) {
-          win.webContents.send('desktop:triggerSync');
+        const currentWin = getMainWindow();
+        if (currentWin) {
+          currentWin.webContents.send('desktop:triggerSync');
           logger.info('TRAY', 'Triggered Sync Now from tray');
+        } else {
+          showOrFocusWindow().then((w) => {
+            w.webContents.send('desktop:triggerSync');
+          });
         }
       },
     },
     {
-      label: 'Open Sync Folder',
+      label: 'Open Monitored Folder',
       click: async () => {
         const settings = await storageService.getSettings();
         if (settings.monitoredFolders.length > 0) {
@@ -61,8 +78,19 @@ function renderTrayMenu() {
     },
     { type: 'separator' },
     {
-      label: 'Quit CloudSync',
+      label: 'Start with Windows',
+      type: 'checkbox',
+      checked: isStartupEnabled,
+      click: async (item) => {
+        await startupService.setStartup(item.checked, true);
+        renderTrayMenu();
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Close Background Service & Quit',
       click: () => {
+        logger.info('TRAY', 'User requested full application exit from system tray');
         setAppIsQuitting(true);
         app.quit();
       },
@@ -70,7 +98,7 @@ function renderTrayMenu() {
   ]);
 
   tray.setContextMenu(contextMenu);
-  tray.setToolTip(`CloudSync - ${currentStatusLabel}`);
+  tray.setToolTip(`CloudSync - ${currentStatusLabel} (${inEcoMode ? 'Eco Mode' : 'Active'})`);
 }
 
 export function initTray(): Tray {
@@ -81,26 +109,36 @@ export function initTray(): Tray {
   try {
     icon = nativeImage.createFromPath(iconPath);
     if (icon.isEmpty()) {
-      // Create a fallback 16x16 icon in memory if file doesn't exist
       icon = nativeImage.createEmpty();
+    } else {
+      // Ensure crisp 16x16 scaling for Windows notification tray
+      icon = icon.resize({ width: 16, height: 16 });
     }
   } catch {
     icon = nativeImage.createEmpty();
   }
 
   tray = new Tray(icon);
-  tray.setToolTip('CloudSync - Desktop File Synchronization');
+  tray.setToolTip('CloudSync - Running in Background (✓ Synced)');
 
+  // Double click restores and focuses the window
   tray.on('double-click', () => {
     showOrFocusWindow();
   });
 
+  // Single click restores window on Windows
   tray.on('click', () => {
     showOrFocusWindow();
   });
 
+  // Right click brings up the full context menu
+  tray.on('right-click', () => {
+    renderTrayMenu();
+    tray?.popUpContextMenu();
+  });
+
   renderTrayMenu();
-  logger.info('TRAY', 'System tray initialized');
+  logger.info('TRAY', 'System tray initialized with background eco controls');
   return tray;
 }
 

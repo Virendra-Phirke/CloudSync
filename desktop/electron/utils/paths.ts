@@ -7,11 +7,21 @@ export function getAppUserDataPath(): string {
 
 export function getIconPath(): string {
   const fs = require('fs');
-  const prodIcon = path.join(__dirname, '../assets/icon.ico');
-  const devIcon = path.join(__dirname, '../../../public/favicon.ico');
-  if (fs.existsSync(prodIcon)) return prodIcon;
-  if (fs.existsSync(devIcon)) return devIcon;
-  return prodIcon;
+  const candidates = [
+    path.resolve(__dirname, '../../assets/icon.ico'),
+    path.resolve(__dirname, '../assets/icon.ico'),
+    path.resolve(process.cwd(), 'desktop/electron/assets/icon.ico'),
+    path.resolve(__dirname, '../../../../public/favicon.ico'),
+    path.resolve(process.cwd(), 'public/favicon.ico'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return path.resolve(__dirname, '../../assets/icon.ico');
 }
 
 export function getNextAppUrl(): string {

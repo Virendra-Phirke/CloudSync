@@ -1,10 +1,11 @@
-import { ipcMain, shell } from 'electron';
+import { ipcMain, shell, app } from 'electron';
 import { filesystemService, trustedRoots } from '../services/filesystem';
 import { fileWatcherService } from '../services/fileWatcher';
 import { notificationService } from '../services/notificationService';
 import { syncService } from '../services/syncService';
+import { startupService } from '../services/startupService';
 import { updateTrayStatus } from './tray';
-import { getMainWindow } from './window';
+import { getMainWindow, setAppIsQuitting, hideMainWindow, showMainWindow } from './window';
 import { logger } from '../utils/logger';
 import { DesktopNotificationPayload } from '../types';
 
@@ -130,6 +131,30 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('desktop:updateTrayStatus', async (_, status: string) => {
     updateTrayStatus(status);
+  });
+
+  // Windows Run on Startup handlers
+  ipcMain.handle('desktop:startup:getSettings', async () => {
+    return await startupService.getSettings();
+  });
+
+  ipcMain.handle('desktop:startup:setSettings', async (_, { openAtLogin, openAsHidden }: { openAtLogin: boolean; openAsHidden?: boolean }) => {
+    return await startupService.setStartup(openAtLogin, openAsHidden ?? true);
+  });
+
+  // Window & Background Process lifecycle controls
+  ipcMain.handle('desktop:hideWindow', () => {
+    hideMainWindow();
+  });
+
+  ipcMain.handle('desktop:showWindow', () => {
+    showMainWindow();
+  });
+
+  ipcMain.handle('desktop:quitApp', () => {
+    logger.info('IPC', 'Quit requested by renderer');
+    setAppIsQuitting(true);
+    app.quit();
   });
 
   // Forward debounced watcher events to renderer

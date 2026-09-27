@@ -1,6 +1,9 @@
 'use client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Folder, FolderOpen, HardDrive, X, Loader2, AlertTriangle, Trash2, FolderPlus, Plus } from 'lucide-react';
+import {
+  Folder, FolderOpen, HardDrive, X, Loader2, AlertTriangle, Trash2, FolderPlus, Plus,
+  Monitor, Power, Minimize2, Cpu, CheckCircle2
+} from 'lucide-react';
 import {
   addLocalFolder, removeLocalFolder, clearAllLocalFolders,
   getLocalFolders, getLocalFolderById, getFolderStats,
@@ -8,7 +11,9 @@ import {
   SyncFolderEntry, SyncFolder, FolderStats,
 } from '../lib/localFolder';
 import { CloudProviderType } from '../lib/providers/types';
-import { isDesktop } from '../lib/desktopAdapter';
+import {
+  isDesktop, getStartupSettings, setStartupSettings, quitDesktopApp, hideDesktopWindow
+} from '../lib/desktopAdapter';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { useToast } from './ToastContext';
 import { getAppSettings, saveAppSettings, AppSettings } from '../lib/settings';
@@ -48,6 +53,12 @@ export function SettingsView() {
   // Confirmation dialog state
   const [folderToRemove, setFolderToRemove] = useState<{ id: string; name: string } | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+
+  // Desktop background & startup state
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
+  const [startupOpenAtLogin, setStartupOpenAtLogin] = useState(false);
+  const [startupLoading, setStartupLoading] = useState(false);
 
   const { showToast } = useToast();
 
@@ -95,6 +106,15 @@ export function SettingsView() {
     }
     loadFolders();
     getAppSettings().then(setSettings);
+
+    if (isDesktop()) {
+      setIsDesktopApp(true);
+      getStartupSettings().then((res) => {
+        if (res) {
+          setStartupOpenAtLogin(res.openAtLogin);
+        }
+      });
+    }
   }, [loadFolders]);
 
   const handleAddFolder = useCallback(async () => {
@@ -135,6 +155,26 @@ export function SettingsView() {
     setSettings(newSettings);
     await saveAppSettings(newSettings);
   }, [settings]);
+
+  const handleToggleStartup = useCallback(async (enabled: boolean) => {
+    setStartupLoading(true);
+    try {
+      if (isDesktop()) {
+        const success = await setStartupSettings(enabled, true);
+        if (success) {
+          setStartupOpenAtLogin(enabled);
+          showToast(enabled ? 'OmniSync will launch on Windows startup' : 'Startup with Windows disabled', 'success');
+        } else {
+          showToast('Failed to update startup configuration', 'error');
+        }
+      }
+      await updateSetting({ launchOnStartup: enabled });
+    } catch (err: any) {
+      showToast(err.message || 'Error updating startup configuration', 'error');
+    } finally {
+      setStartupLoading(false);
+    }
+  }, [updateSetting, showToast]);
 
   return (
     <div className="h-full flex flex-col overflow-y-auto">
@@ -318,6 +358,104 @@ export function SettingsView() {
           )}
         </div>
 
+        {/* ── Desktop & Background Service Bento Block (Desktop Native) ── */}
+        {isDesktopApp && (
+          <div className="bento-block space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400">
+                  <Monitor size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-bold text-foreground">Desktop & Background Service</h3>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      Tray Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Windows system tray integration and low-overhead background daemon</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => hideDesktopWindow()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-secondary/80 hover:bg-secondary border border-border/80 text-foreground transition-all cursor-pointer"
+                  title="Minimize window to Windows notification tray"
+                >
+                  <Minimize2 size={13} />
+                  Minimize to Tray
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowQuitConfirm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-destructive/10 hover:bg-destructive/20 border border-destructive/20 text-destructive transition-all cursor-pointer"
+                  title="Completely terminate background sync service"
+                >
+                  <Power size={13} />
+                  Quit Background Service
+                </button>
+              </div>
+            </div>
+
+            <div className="bento-subcard divide-y divide-border/60 !p-0 overflow-hidden">
+              {/* Start with Windows Toggle */}
+              <div className="p-4 flex items-center justify-between hover:bg-secondary/40 transition-colors duration-150">
+                <div>
+                  <p className="font-medium text-foreground text-sm">Start with Windows</p>
+                  <p className="text-xs text-muted-foreground">Launch OmniSync quietly in the Windows notification tray on startup</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={startupOpenAtLogin}
+                    onChange={(e) => handleToggleStartup(e.target.checked)}
+                    disabled={startupLoading}
+                  />
+                  <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+
+              {/* Background Eco Mode RAM target */}
+              <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-secondary/40 transition-colors duration-150">
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-foreground text-sm">Background Eco Mode</p>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                      50–100 MB Target
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    When the main window is closed, OmniSync trims V8 memory heaps and purges session caches to maintain a 50–100 MB RAM footprint.
+                  </p>
+                </div>
+                <div className="shrink-0 flex items-center gap-2">
+                  <span className="text-xs text-emerald-400 font-medium inline-flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                    <Cpu size={13} />
+                    Eco Engine Active
+                  </span>
+                </div>
+              </div>
+
+              {/* Taskbar tray info banner */}
+              <div className="p-4 bg-secondary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p className="font-semibold text-foreground text-xs flex items-center gap-1.5">
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    Taskbar Notification Area Behavior:
+                  </p>
+                  <p>• <strong>Single or Double-click</strong> tray icon to restore and focus OmniSync.</p>
+                  <p>• <strong>Right-click</strong> tray icon for quick sync, startup toggle, and service termination.</p>
+                  <p>• Closing via window <strong>[X]</strong> keeps the background service alive in the tray.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Sync Automation Preferences Bento Block ── */}
         <div className="bento-block space-y-4">
           <div className="flex items-center gap-2.5">
@@ -357,9 +495,9 @@ export function SettingsView() {
                 <input
                   type="checkbox"
                   className="sr-only peer"
-                  checked={settings?.launchOnStartup || false}
-                  onChange={(e) => updateSetting({ launchOnStartup: e.target.checked })}
-                  disabled={!settings}
+                  checked={isDesktopApp ? startupOpenAtLogin : (settings?.launchOnStartup || false)}
+                  onChange={(e) => handleToggleStartup(e.target.checked)}
+                  disabled={isDesktopApp ? startupLoading : !settings}
                 />
                 <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-muted-foreground after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
               </label>
@@ -433,6 +571,19 @@ export function SettingsView() {
         isDestructive
         onConfirm={confirmClearAll}
         onCancel={() => setShowResetConfirm(false)}
+      />
+
+      <ConfirmDialog
+        isOpen={showQuitConfirm}
+        title="Quit Background Service"
+        message="Are you sure you want to stop the OmniSync background service? Automatic file synchronization and system tray monitoring will be terminated until you relaunch the app."
+        confirmText="Quit Background Service"
+        isDestructive
+        onConfirm={async () => {
+          setShowQuitConfirm(false);
+          await quitDesktopApp();
+        }}
+        onCancel={() => setShowQuitConfirm(false)}
       />
     </div>
   );

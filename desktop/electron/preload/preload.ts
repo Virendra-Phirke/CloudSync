@@ -57,6 +57,18 @@ const api: CloudSyncDesktopAPI = {
   updateTrayStatus: (status: string) =>
     ipcRenderer.invoke('desktop:updateTrayStatus', status),
 
+  startup: {
+    getSettings: () => ipcRenderer.invoke('desktop:startup:getSettings'),
+    setSettings: (settings: { openAtLogin: boolean; openAsHidden?: boolean }) =>
+      ipcRenderer.invoke('desktop:startup:setSettings', settings),
+  },
+
+  quitApp: () => ipcRenderer.invoke('desktop:quitApp'),
+
+  hideWindow: () => ipcRenderer.invoke('desktop:hideWindow'),
+
+  showWindow: () => ipcRenderer.invoke('desktop:showWindow'),
+
   onFolderEvent: (callback: (event: DesktopFolderWatcherEvent) => void) => {
     const handler = (_: any, event: DesktopFolderWatcherEvent) => callback(event);
     ipcRenderer.on('desktop:folderEvent', handler);
@@ -78,6 +90,14 @@ const api: CloudSyncDesktopAPI = {
     ipcRenderer.on('desktop:authChanged', handler);
     return () => {
       ipcRenderer.removeListener('desktop:authChanged', handler);
+    };
+  },
+
+  onBackgroundModeChanged: (callback: (payload: { inBackground: boolean }) => void) => {
+    const handler = (_: any, payload: { inBackground: boolean }) => callback(payload);
+    ipcRenderer.on('desktop:backgroundModeChanged', handler);
+    return () => {
+      ipcRenderer.removeListener('desktop:backgroundModeChanged', handler);
     };
   },
 };

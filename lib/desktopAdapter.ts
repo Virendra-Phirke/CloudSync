@@ -132,3 +132,24 @@ export function createDesktopFileHandle(
     },
   };
 }
+
+export async function getStartupSettings(): Promise<{ openAtLogin: boolean; openAsHidden: boolean } | null> {
+  if (!isDesktop() || !window.cloudSyncDesktop?.startup) return null;
+  return await window.cloudSyncDesktop.startup.getSettings();
+}
+
+export async function setStartupSettings(openAtLogin: boolean, openAsHidden = true): Promise<boolean> {
+  if (!isDesktop() || !window.cloudSyncDesktop?.startup) return false;
+  return await window.cloudSyncDesktop.startup.setSettings({ openAtLogin, openAsHidden });
+}
+
+export async function quitDesktopApp(): Promise<void> {
+  if (!isDesktop() || !window.cloudSyncDesktop?.quitApp) return;
+  await window.cloudSyncDesktop.quitApp();
+}
+
+export async function hideDesktopWindow(): Promise<void> {
+  if (!isDesktop() || !window.cloudSyncDesktop?.hideWindow) return;
+  await window.cloudSyncDesktop.hideWindow();
+}
+

@@ -3,6 +3,7 @@ import path from 'path';
 import { getIconPath } from '../utils/paths';
 import { logger } from '../utils/logger';
 import { resolveAppUrl } from '../services/serverService';
+import { memoryManager } from '../services/memoryManager';
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
@@ -15,15 +16,30 @@ export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
-export async function createMainWindow(): Promise<BrowserWindow> {
+export function hideMainWindow() {
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+    mainWindow.hide();
+  }
+}
+
+export function showMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
+  } else {
+    createMainWindow();
+  }
+}
+
+export async function createMainWindow(): Promise<BrowserWindow> {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    showMainWindow();
     return mainWindow;
   }
 
   const preloadPath = path.join(__dirname, '../preload/preload.js');
+  const startHidden = process.argv.includes('--hidden') || process.argv.includes('-hidden');
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -33,13 +49,14 @@ export async function createMainWindow(): Promise<BrowserWindow> {
     title: 'CloudSync',
     backgroundColor: '#090d16',
     icon: getIconPath(),
-    show: false, // show when ready-to-show
+    show: false, // show when ready-to-show (unless startHidden)
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
       webSecurity: true,
+      backgroundThrottling: true, // Throttles inactive renderers to achieve 50-100MB RAM in background
     },
   });
 
@@ -48,8 +65,21 @@ export async function createMainWindow(): Promise<BrowserWindow> {
   mainWindow.loadURL(appUrl);
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-    logger.info('IPC', 'Main window displayed');
+    if (startHidden) {
+      logger.info('SYNC', 'Started with --hidden flag, running quietly in background tray');
+      memoryManager.enterEcoMode(mainWindow);
+    } else {
+      mainWindow?.show();
+      logger.info('IPC', 'Main window displayed');
+    }
+  });
+
+  mainWindow.on('hide', () => {
+    memoryManager.enterEcoMode(mainWindow);
+  });
+
+  mainWindow.on('show', () => {
+    memoryManager.leaveEcoMode(mainWindow);
   });
 
   // When user clicks the close button 'X', hide to tray instead of exiting
@@ -57,7 +87,7 @@ export async function createMainWindow(): Promise<BrowserWindow> {
     if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
-      logger.info('TRAY', 'Window minimized to tray');
+      logger.info('TRAY', 'Window closed to tray. CloudSync running in background Eco Mode.');
     }
   });
 
