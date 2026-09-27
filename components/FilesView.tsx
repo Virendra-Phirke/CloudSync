@@ -1140,7 +1140,7 @@ export const FilesView = React.memo(function FilesView() {
               </>
             )}
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full">
             {/* Cloud Provider Selector */}
             <div className="flex items-center bg-secondary/80 border border-border/80 rounded-xl p-0.5 text-xs">
               <button
@@ -1206,7 +1206,7 @@ export const FilesView = React.memo(function FilesView() {
                 placeholder="Search files..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 pr-10 py-1.5 text-xs sm:text-sm bg-secondary/80 border border-border/80 text-foreground rounded-xl focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all w-32 sm:w-48 placeholder:text-muted-foreground"
+                className="pl-8 pr-10 py-1.5 text-xs sm:text-sm bg-secondary/80 border border-border/80 text-foreground rounded-xl focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all w-28 sm:w-48 placeholder:text-muted-foreground"
               />
               <kbd className="hidden sm:inline-block absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded border border-border/70 font-mono pointer-events-none">⌘K</kbd>
             </div>
@@ -1305,7 +1305,7 @@ export const FilesView = React.memo(function FilesView() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 4, scale: 0.98 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute left-0 top-full mt-1.5 w-60 bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
+                        className="absolute left-0 top-full mt-1.5 w-60 max-w-[calc(100vw-2rem)] bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
                       >
                         <div className="max-h-60 overflow-y-auto p-1 hide-scrollbar space-y-1">
                           {providerFolders.length === 0 ? (
@@ -1364,7 +1364,7 @@ export const FilesView = React.memo(function FilesView() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 4, scale: 0.98 }}
                     transition={{ duration: 0.12 }}
-                    className="absolute left-0 top-full mt-1.5 w-48 bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
+                    className="absolute left-0 top-full mt-1.5 w-48 max-w-[calc(100vw-2rem)] bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
                   >
                     <button
                       onClick={() => { setIsFabMenuOpen(false); handleAddFolder(); }}

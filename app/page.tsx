@@ -112,25 +112,25 @@ export default function Page() {
         onOpenTheme={() => setIsThemeOpen(true)}
       />
 
-      <main className="flex-1 overflow-y-auto relative h-full bg-background">
+      <main className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden relative h-full bg-background w-full">
         <AnimatePresence mode="wait">
           {activeTab === 'dashboard' && (
-            <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+            <motion.div key="dashboard" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full w-full">
               <Dashboard />
             </motion.div>
           )}
           {activeTab === 'files' && (
-            <motion.div key="files" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+            <motion.div key="files" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full w-full">
               <FilesView />
             </motion.div>
           )}
           {activeTab === 'accounts' && (
-            <motion.div key="accounts" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+            <motion.div key="accounts" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full w-full">
               <AccountsView />
             </motion.div>
           )}
           {activeTab === 'settings' && (
-            <motion.div key="settings" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full">
+            <motion.div key="settings" variants={pageVariants} initial="initial" animate="animate" exit="exit" className="h-full w-full">
               <SettingsView />
             </motion.div>
           )}

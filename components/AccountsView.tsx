@@ -142,7 +142,7 @@ export const AccountsView = React.memo(function AccountsView() {
   return (
     <div className="h-full flex flex-col overflow-y-auto">
       <header className="px-4 sm:px-6 md:px-8 py-5 border-b border-border/70 sticky top-0 bg-background/95 backdrop-blur-md z-10">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2.5">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">Cloud Accounts</h2>
@@ -157,7 +157,7 @@ export const AccountsView = React.memo(function AccountsView() {
 
           <button
             onClick={() => setIsSyncModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 rounded-xl transition-all shadow-md shadow-primary/20"
+            className="flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 rounded-xl transition-all shadow-md shadow-primary/20 shrink-0"
           >
             <FolderSync size={15} />
             <span>Create Multi-Cloud Sync</span>
@@ -233,11 +233,11 @@ export const AccountsView = React.memo(function AccountsView() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                  <div className="flex items-center gap-3 shrink-0 self-stretch sm:self-center justify-end sm:justify-start">
                     {cfg.connected ? (
                       <button
                         onClick={() => setDisconnectTarget(cfg)}
-                        className="px-4 py-2 text-xs sm:text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-xl transition-colors border border-destructive/20"
+                        className="w-full sm:w-auto px-4 py-2 text-xs sm:text-sm font-medium text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-xl transition-colors border border-destructive/20"
                       >
                         Disconnect
                       </button>
@@ -245,7 +245,7 @@ export const AccountsView = React.memo(function AccountsView() {
                       <button
                         onClick={() => handleConnect(cfg.provider)}
                         disabled={isConnecting}
-                        className="flex items-center gap-2 px-5 py-2 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 disabled:opacity-50 rounded-xl transition-all shadow-md shadow-primary/20"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 disabled:opacity-50 rounded-xl transition-all shadow-md shadow-primary/20"
                       >
                         {isConnecting ? (
                           <>

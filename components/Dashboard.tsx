@@ -195,7 +195,7 @@ export const Dashboard = React.memo(function Dashboard() {
 
   // Close storage dropdown on outside click or Escape
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (storageDropdownRef.current && !storageDropdownRef.current.contains(event.target as Node)) {
         setIsStorageDropdownOpen(false);
       }
@@ -207,9 +207,11 @@ export const Dashboard = React.memo(function Dashboard() {
     }
     if (isStorageDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
       document.addEventListener('keydown', handleKeyDown);
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('touchstart', handleClickOutside);
         document.removeEventListener('keydown', handleKeyDown);
       };
     }
@@ -1094,21 +1096,21 @@ export const Dashboard = React.memo(function Dashboard() {
           {/* Bento Card 1: Local PC Folders (6 cols) */}
           <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-6 bento-block flex flex-col justify-between">
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl">
+              <div className="flex items-start sm:items-center justify-between gap-2.5 mb-4 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 bg-blue-500/10 text-blue-400 rounded-xl shrink-0">
                     <Folder size={20} />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-base">Local PC Folders</h3>
-                    <p className="text-xs text-muted-foreground">Monitored source folders and their assigned cloud drive</p>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-foreground text-base truncate">Local PC Folders</h3>
+                    <p className="text-xs text-muted-foreground truncate">Monitored source folders and their assigned cloud drive</p>
                   </div>
                 </div>
 
                 <button
                   onClick={handleQuickAddFolder}
                   disabled={addingFolder}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-colors disabled:opacity-50 shrink-0 ml-auto sm:ml-0"
                 >
                   {addingFolder ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
                   <span>Add Folder</span>
@@ -1228,19 +1230,19 @@ export const Dashboard = React.memo(function Dashboard() {
           <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-6 bento-block flex flex-col justify-between">
             <div>
               {/* Header */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+              <div className="flex items-start sm:items-center justify-between gap-2.5 mb-4 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl shrink-0">
                     <Cloud size={20} />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-base">Cloud Storage</h3>
-                    <p className="text-xs text-muted-foreground">Multi-cloud quota & storage breakdown</p>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-foreground text-base truncate">Cloud Storage</h3>
+                    <p className="text-xs text-muted-foreground truncate">Multi-cloud quota & storage breakdown</p>
                   </div>
                 </div>
 
                 {/* Drive Selector Dropdown */}
-                <div className="relative" ref={storageDropdownRef}>
+                <div className="relative shrink-0 ml-auto sm:ml-0" ref={storageDropdownRef}>
                   <button
                     type="button"
                     onClick={() => setIsStorageDropdownOpen(!isStorageDropdownOpen)}
@@ -1275,7 +1277,8 @@ export const Dashboard = React.memo(function Dashboard() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 4, scale: 0.96 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute right-0 top-full mt-2 w-60 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/80 shadow-2xl p-1.5 z-30 space-y-1"
+                        style={{ right: 0, left: 'auto' }}
+                        className="absolute right-0 left-auto top-full mt-2 w-60 max-w-[calc(100vw-2.5rem)] rounded-2xl bg-card/95 backdrop-blur-xl border border-border/80 shadow-2xl p-1.5 z-50 space-y-1"
                       >
                         <div className="px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                           Select Drive View
@@ -1724,29 +1727,29 @@ export const Dashboard = React.memo(function Dashboard() {
           <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-8 bento-block flex flex-col justify-between">
             <div>
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl shrink-0">
                     <Clock size={20} />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-foreground text-base">Recent Cloud Activity</h3>
-                    <p className="text-xs text-muted-foreground">Recently modified items across your cloud drives</p>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-foreground text-base truncate">Recent Cloud Activity</h3>
+                    <p className="text-xs text-muted-foreground truncate">Recently modified items across your cloud drives</p>
                   </div>
                 </div>
 
                 {/* Filter and Export Toolbar */}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
                   <input
                     type="text"
                     placeholder="Filter activity..."
                     value={activitySearch}
                     onChange={(e) => setActivitySearch(e.target.value)}
-                    className="px-2.5 py-1 text-xs bg-secondary/70 border border-border/70 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all w-32 sm:w-40"
+                    className="px-2.5 py-1 text-xs bg-secondary/70 border border-border/70 rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary transition-all flex-1 sm:flex-none w-full sm:w-40"
                   />
                   <button
                     onClick={handleExport}
                     disabled={filteredRecentFiles.length === 0}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground bg-secondary/80 hover:bg-secondary border border-border/80 rounded-lg transition-colors disabled:opacity-40"
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-foreground bg-secondary/80 hover:bg-secondary border border-border/80 rounded-lg transition-colors disabled:opacity-40 shrink-0"
                   >
                     <Download size={13} />
                     <span className="hidden sm:inline">Export</span>
@@ -1859,8 +1862,11 @@ export const Dashboard = React.memo(function Dashboard() {
                               </div>
                             </div>
                           </div>
-                          <span className="text-[11px] text-muted-foreground font-medium shrink-0">
+                          <span className="text-[11px] text-muted-foreground font-medium shrink-0 hidden sm:inline">
                             {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-medium shrink-0 sm:hidden">
+                            {new Date(item.modifiedTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </span>
                         </div>
                       );

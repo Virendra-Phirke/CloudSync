@@ -253,7 +253,7 @@ export function SettingsView() {
                     </div>
 
                     {/* Cloud Drive Indicator & Selector */}
-                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pl-11 sm:pl-0">
+                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pl-11 sm:pl-0 flex-wrap">
                       <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border ${
                         currentProvider === 'dropbox' 
                           ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
