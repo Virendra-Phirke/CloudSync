@@ -111,3 +111,21 @@ test('Desktop Eco Mode - handles background transitions and GC trigger', async (
 
   delete (global as any).window;
 });
+
+test('Filesystem Sandbox - resolveSafePath protects against traversal and prefix collision', async () => {
+  const { resolveSafePath, toPosixPath } = await import('../desktop/electron/utils/safePath');
+  const base = process.platform === 'win32' ? 'C:\\UserFolder\\SyncRoot' : '/home/user/SyncRoot';
+
+  // Valid child paths
+  const resolvedChild = resolveSafePath(base, 'nested/file.txt');
+  assert.ok(toPosixPath(resolvedChild).toLowerCase().includes('syncroot/nested/file.txt'));
+
+  // Traversal attack (..)
+  assert.throws(() => resolveSafePath(base, '../../outside.txt'), /Path traversal violation/);
+
+  // Prefix collision attack (e.g. SyncRootEvil)
+  assert.throws(() => resolveSafePath(base, '../SyncRootEvil/payload.exe'), /Path traversal violation/);
+
+  // Null byte injection attack
+  assert.throws(() => resolveSafePath(base, 'file\0.txt'), /null bytes/);
+});

@@ -1,4 +1,3 @@
-const innosetup = require('../electron/node_modules/innosetup-compiler');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,12 +8,23 @@ const MAKE_DIR = path.resolve(OUT_DIST_DIR, 'make');
 const APP_DIR = path.resolve(OUT_DIST_DIR, 'CloudSync-win32-x64');
 const ICON_PATH = path.resolve(ELECTRON_DIR, 'assets/icon.ico');
 
+let innosetup;
+try {
+  innosetup = require('innosetup-compiler');
+} catch {
+  try {
+    innosetup = require(path.join(ELECTRON_DIR, 'node_modules/innosetup-compiler'));
+  } catch {
+    innosetup = require('../electron/node_modules/innosetup-compiler');
+  }
+}
+
 function buildWindowsWizardInstaller() {
   return new Promise((resolve, reject) => {
     console.log('\n=== Generating Windows Standard Setup Wizard (Inno Setup) ===');
 
     if (!fs.existsSync(APP_DIR)) {
-      return reject(new Error(`Packaged application directory not found: ${APP_DIR}`));
+      return reject(new Error(`Packaged application directory not found at: ${APP_DIR}.\nPlease run "npm run desktop:build" first to produce the packaged Electron binary before generating the Setup Wizard.`));
     }
 
     fs.mkdirSync(MAKE_DIR, { recursive: true });

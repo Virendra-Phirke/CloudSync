@@ -93,8 +93,14 @@ export async function createMainWindow(): Promise<BrowserWindow> {
 
   // Safe navigation: external URLs open in default browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    // Allow Google OAuth login popups/navigation
-    if (url.includes('accounts.google.com') || url.includes('google.com/o/oauth2')) {
+    // Allow OAuth login popups/navigation (Google, Dropbox, OneDrive)
+    if (
+      url.includes('accounts.google.com') ||
+      url.includes('google.com/o/oauth2') ||
+      url.includes('dropbox.com/oauth2') ||
+      url.includes('login.microsoftonline.com') ||
+      url.includes('login.live.com')
+    ) {
       return { action: 'allow' };
     }
 

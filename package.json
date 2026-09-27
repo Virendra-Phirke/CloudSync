@@ -11,7 +11,8 @@
     "clean": "next clean",
     "postinstall": "node scripts/postinstall.js",
     "desktop:dev": "node desktop/scripts/dev.js",
-    "desktop:build": "node desktop/scripts/build.js"
+    "desktop:build": "node desktop/scripts/build.js",
+    "desktop:installer": "node desktop/scripts/build-installer.js"
   },
   "dependencies": {
     "@base-ui-components/react": "^1.0.0-rc.0",

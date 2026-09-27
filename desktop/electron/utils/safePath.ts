@@ -12,12 +12,13 @@ export function resolveSafePath(baseFolder: string, relativePath = ''): string {
   const normalizedBase = path.resolve(baseFolder);
   const resolvedTarget = path.resolve(normalizedBase, relativePath);
 
-  // Check if target starts with base folder
+  // Check if target starts with base folder (strictly inside or exact match)
   // On Windows, paths are case-insensitive, so normalize comparison
   const baseCompare = process.platform === 'win32' ? normalizedBase.toLowerCase() : normalizedBase;
   const targetCompare = process.platform === 'win32' ? resolvedTarget.toLowerCase() : resolvedTarget;
+  const baseWithSep = baseCompare.endsWith(path.sep) ? baseCompare : baseCompare + path.sep;
 
-  if (!targetCompare.startsWith(baseCompare)) {
+  if (targetCompare !== baseCompare && !targetCompare.startsWith(baseWithSep)) {
     throw new Error(`Path traversal violation: "${relativePath}" escapes root folder "${baseFolder}"`);
   }
 
