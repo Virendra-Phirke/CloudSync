@@ -7,7 +7,7 @@ import { motion } from 'motion/react';
 const StorageChart = dynamic(() => import('./StorageChart').then(mod => mod.StorageChart), { ssr: false });
 const FolderStructureModal = dynamic(() => import('./FolderStructureModal').then(mod => mod.FolderStructureModal), { ssr: false });
 import { fetchDriveQuota, fetchDriveFiles, DriveFile, DriveQuota } from '../lib/drive';
-import { initAuth, OAuthUser } from '../lib/oauth';
+import { initAuth, OAuthUser, isProviderAuthenticated } from '../lib/oauth';
 import { getLocalFolders, getLocalFolderById, getFolderStats, getLocalFolderInfos, addLocalFolder, FolderStats, SyncFolder } from '../lib/localFolder';
 import { isDesktop } from '../lib/desktopAdapter';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -175,11 +175,14 @@ export const Dashboard = React.memo(function Dashboard() {
       showToast('Add a local folder first to sync', 'info');
       return;
     }
-    if (!user) {
-      showToast('Connect your Google Drive account in Accounts tab', 'error');
+    const targetFolder = folderEntries[0].folder;
+    const provider = targetFolder.provider || 'google';
+    if (!isProviderAuthenticated(provider)) {
+      const provName = provider === 'dropbox' ? 'Dropbox' : provider === 'onedrive' ? 'OneDrive' : 'Google Drive';
+      showToast(`Connect your ${provName} account in Accounts tab`, 'error');
       return;
     }
-    startSync(folderEntries[0].folder.id);
+    startSync(targetFolder.id, provider);
   };
 
   const handleExport = () => {

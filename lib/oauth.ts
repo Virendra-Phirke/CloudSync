@@ -266,6 +266,12 @@ export function initiateProviderOAuth(provider: CloudProviderType): void {
     initiateOAuth();
     return;
   }
+  const tokenCookie = provider === 'dropbox' ? 'dbx_access_token' : 'one_access_token';
+  const userCookie = provider === 'dropbox' ? 'dbx_user' : 'one_user';
+  if (typeof document !== 'undefined') {
+    document.cookie = `${tokenCookie}=; path=/; max-age=0`;
+    document.cookie = `${userCookie}=; path=/; max-age=0`;
+  }
   window.location.href = `/api/auth/${provider}`;
 }
 

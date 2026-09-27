@@ -4,8 +4,10 @@ import { Folder, FolderOpen, HardDrive, X, Loader2, AlertTriangle, Trash2, Folde
 import {
   addLocalFolder, removeLocalFolder, clearAllLocalFolders,
   getLocalFolders, getLocalFolderById, getFolderStats,
+  updateLocalFolderProvider,
   SyncFolderEntry, SyncFolder, FolderStats,
 } from '../lib/localFolder';
+import { CloudProviderType } from '../lib/providers/types';
 import { isDesktop } from '../lib/desktopAdapter';
 import { initAuth, OAuthUser } from '../lib/oauth';
 import { useToast } from './ToastContext';
@@ -41,6 +43,7 @@ export function SettingsView() {
   const [folderEntries, setFolderEntries] = useState<FolderWithStats[]>([]);
   const [loadingPick, setLoadingPick] = useState(false);
   const [fsApiSupported, setFsApiSupported] = useState(true);
+  const [newFolderProvider, setNewFolderProvider] = useState<CloudProviderType>('google');
 
   // Confirmation dialog state
   const [folderToRemove, setFolderToRemove] = useState<{ id: string; name: string } | null>(null);
@@ -97,9 +100,10 @@ export function SettingsView() {
   const handleAddFolder = useCallback(async () => {
     setLoadingPick(true);
     try {
-      const entry = await addLocalFolder();
+      const entry = await addLocalFolder(newFolderProvider);
       if (!entry) return;
-      showToast(`Added folder "${entry.info.name}"`, 'success');
+      const provLabel = newFolderProvider === 'dropbox' ? 'Dropbox' : newFolderProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
+      showToast(`Added folder "${entry.info.name}" linked to ${provLabel}`, 'success');
       await loadFolders();
     } catch (err: any) {
       if (err.name !== 'AbortError') {
@@ -108,7 +112,7 @@ export function SettingsView() {
     } finally {
       setLoadingPick(false);
     }
-  }, [showToast, loadFolders]);
+  }, [newFolderProvider, showToast, loadFolders]);
 
   const confirmRemoveFolder = useCallback(async () => {
     if (!folderToRemove) return;
@@ -153,21 +157,33 @@ export function SettingsView() {
                 <h3 className="text-sm sm:text-base font-bold text-foreground">
                   Monitored Folders
                 </h3>
-                <p className="text-xs text-muted-foreground">Directories synced bidirectionally with Google Drive</p>
+                <p className="text-xs text-muted-foreground">Directories synced bidirectionally across Google Drive, Dropbox, or OneDrive</p>
               </div>
             </div>
 
-            <button
-              onClick={handleAddFolder}
-              disabled={loadingPick || !fsApiSupported}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-primary/20"
-            >
-              {loadingPick ? (
-                <><Loader2 size={14} className="animate-spin" /> Adding...</>
-              ) : (
-                <><Plus size={14} /> Add Folder</>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={newFolderProvider}
+                onChange={(e) => setNewFolderProvider(e.target.value as CloudProviderType)}
+                className="px-2.5 py-1.5 text-xs font-medium rounded-xl bg-secondary/80 border border-border/80 text-foreground focus:outline-none cursor-pointer"
+                title="Select which drive to add new folder to"
+              >
+                <option value="google">Add to Google Drive</option>
+                <option value="dropbox">Add to Dropbox</option>
+                <option value="onedrive">Add to OneDrive</option>
+              </select>
+              <button
+                onClick={handleAddFolder}
+                disabled={loadingPick || !fsApiSupported}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-medium text-primary-foreground bg-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm shadow-primary/20 cursor-pointer"
+              >
+                {loadingPick ? (
+                  <><Loader2 size={14} className="animate-spin" /> Adding...</>
+                ) : (
+                  <><Plus size={14} /> Add Folder</>
+                )}
+              </button>
+            </div>
           </div>
 
           {!fsApiSupported && (
@@ -184,63 +200,120 @@ export function SettingsView() {
               </div>
               <p className="text-sm font-semibold text-foreground mb-1">No folders linked</p>
               <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
-                Add folders from your PC to sync with Google Drive. Multi-folder tracking supported.
+                Add folders from your PC to sync with your connected cloud drives (Google Drive, Dropbox, OneDrive). Multi-folder tracking supported.
               </p>
               {!user && fsApiSupported && (
                 <p className="text-xs text-amber-400 mt-3 flex items-center gap-1">
                   <AlertTriangle size={12} />
-                  Connect your Google account in Accounts tab first
+                  Connect your cloud accounts in Accounts tab to sync
                 </p>
               )}
             </div>
           ) : (
             <div className="divide-y divide-border/60 bento-subcard !p-0 overflow-hidden">
-              {folderEntries.map((entry) => (
-                <div
-                  key={entry.folder.id}
-                  className="p-4 flex items-center justify-between gap-4 hover:bg-secondary/60 transition-colors duration-150"
-                >
-                  <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 shrink-0">
-                      <FolderOpen size={18} />
+              {folderEntries.map((entry) => {
+                const currentProvider: CloudProviderType = entry.folder.provider || 'google';
+
+                return (
+                  <div
+                    key={entry.folder.id}
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-secondary/60 transition-colors duration-150"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0">
+                      <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 shrink-0">
+                        <FolderOpen size={18} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-foreground text-sm truncate">{entry.folder.name}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Added {new Date(entry.folder.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                        {entry.loading ? (
+                          <div className="flex items-center gap-3 mt-1.5 animate-pulse">
+                            <div className="h-3 w-12 bg-secondary rounded"></div>
+                            <div className="h-3 w-12 bg-secondary rounded"></div>
+                            <div className="h-3 w-16 bg-secondary rounded"></div>
+                          </div>
+                        ) : entry.stats ? (
+                          <div className="flex items-center gap-3 mt-1.5">
+                            {[
+                              { label: 'Files', value: entry.stats.fileCount.toString(), color: 'text-blue-400' },
+                              { label: 'Dirs', value: entry.stats.dirCount.toString(), color: 'text-purple-400' },
+                              { label: 'Size', value: formatBytes(entry.stats.totalSize), color: 'text-emerald-400' },
+                            ].map(({ label, value, color }) => (
+                              <span key={label} className="text-xs text-muted-foreground">
+                                <span className={`font-semibold ${color}`}>{value}</span> {label}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-amber-400 mt-1">Permission needed to access</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-foreground text-sm truncate">{entry.folder.name}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Added {new Date(entry.folder.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      </p>
-                      {entry.loading ? (
-                        <div className="flex items-center gap-3 mt-1.5 animate-pulse">
-                          <div className="h-3 w-12 bg-secondary rounded"></div>
-                          <div className="h-3 w-12 bg-secondary rounded"></div>
-                          <div className="h-3 w-16 bg-secondary rounded"></div>
-                        </div>
-                      ) : entry.stats ? (
-                        <div className="flex items-center gap-3 mt-1.5">
-                          {[
-                            { label: 'Files', value: entry.stats.fileCount.toString(), color: 'text-blue-400' },
-                            { label: 'Dirs', value: entry.stats.dirCount.toString(), color: 'text-purple-400' },
-                            { label: 'Size', value: formatBytes(entry.stats.totalSize), color: 'text-emerald-400' },
-                          ].map(({ label, value, color }) => (
-                            <span key={label} className="text-xs text-muted-foreground">
-                              <span className={`font-semibold ${color}`}>{value}</span> {label}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-amber-400 mt-1">Permission needed to access</p>
-                      )}
+
+                    {/* Cloud Drive Indicator & Selector */}
+                    <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0 pl-11 sm:pl-0">
+                      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border ${
+                        currentProvider === 'dropbox' 
+                          ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' 
+                          : currentProvider === 'onedrive' 
+                          ? 'bg-sky-500/10 text-sky-400 border-sky-500/20' 
+                          : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      }`}>
+                        {currentProvider === 'google' && (
+                          <svg width="14" height="14" viewBox="0 0 87.3 127.3" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                            <path d="M58.3 126H29.1L0 75.8l29.2-50.2h29.2l28.9 50.2z" fill="#1fa463" />
+                            <path d="M19.4 58.9l-9.7 16.9 29.2 50.2h19.3z" fill="#137333" />
+                            <path d="M29.1 0L0 50.2l9.7 16.9L48.5 16.9z" fill="#ffcc4d" />
+                            <path d="M29.1 0l-9.7 16.9h58.3l9.6-16.9z" fill="#ea4335" />
+                            <path d="M29.1 0L19.4 16.9l29.1 50.2 9.6-16.9z" fill="#c5221f" />
+                          </svg>
+                        )}
+                        {currentProvider === 'dropbox' && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                            <path d="M6 3L0 7.5L6 12L12 7.5L6 3Z" fill="#0061FF" />
+                            <path d="M18 3L12 7.5L18 12L24 7.5L18 3Z" fill="#0061FF" />
+                            <path d="M0 16.5L6 21L12 16.5L6 12L0 16.5Z" fill="#0061FF" />
+                            <path d="M24 16.5L18 21L12 16.5L18 12L24 16.5Z" fill="#0061FF" />
+                            <path d="M6 22.5L12 18L18 22.5L12 26.5L6 22.5Z" fill="#0061FF" />
+                          </svg>
+                        )}
+                        {currentProvider === 'onedrive' && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                            <path d="M19.5 9.5C18.8 6.9 16.4 5 13.5 5c-2.3 0-4.3 1.2-5.4 3-0.5-0.1-1-0.2-1.6-0.2-3 0-5.5 2.5-5.5 5.5 0 0.5 0.1 1 0.2 1.4C0.5 15.3 0 16.3 0 17.5 0 19.4 1.6 21 3.5 21h15.8c2.6 0 4.7-2.1 4.7-4.7 0-2.3-1.6-4.2-3.8-4.6-0.1-0.7-0.3-1.5-0.7-2.2z" fill="#0078D4"/>
+                          </svg>
+                        )}
+                        <span className="text-[11px] opacity-75 font-normal">Drive:</span>
+                        <select
+                          value={currentProvider}
+                          onChange={async (e) => {
+                            const nextProvider = e.target.value as CloudProviderType;
+                            await updateLocalFolderProvider(entry.folder.id, nextProvider);
+                            const provLabel = nextProvider === 'dropbox' ? 'Dropbox' : nextProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
+                            showToast(`Folder "${entry.folder.name}" now targets ${provLabel}`, 'success');
+                            await loadFolders();
+                          }}
+                          className="bg-transparent font-semibold text-xs focus:outline-none cursor-pointer pr-1"
+                          title="Select which cloud drive this folder syncs with"
+                        >
+                          <option value="google" className="bg-background text-foreground">Google Drive</option>
+                          <option value="dropbox" className="bg-background text-foreground">Dropbox</option>
+                          <option value="onedrive" className="bg-background text-foreground">OneDrive</option>
+                        </select>
+                      </div>
+
+                      <button
+                        onClick={() => setFolderToRemove({ id: entry.folder.id, name: entry.folder.name })}
+                        className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0 cursor-pointer"
+                        title="Remove folder"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setFolderToRemove({ id: entry.folder.id, name: entry.folder.name })}
-                    className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-                    title="Remove folder"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

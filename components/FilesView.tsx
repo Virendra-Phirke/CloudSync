@@ -14,7 +14,7 @@ import { getProvider } from '../lib/providers';
 import { initAuth, OAuthUser, isProviderAuthenticated, initiateProviderOAuth } from '../lib/oauth';
 import {
   getLocalFolders, getLocalFolderById, getLocalFolderRaw, pickAndInitFolder, commitLocalFolder, readFolderChildren,
-  readFolderFiles, LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder,
+  readFolderFiles, LocalFile, SyncFolderEntry, getLocalFolderInfos, SyncFolder, updateLocalFolderProvider,
 } from '../lib/localFolder';
 import { syncBiDirectional, ConflictItem } from '../lib/syncBiDirectional';
 import { useSync } from './SyncContext';
@@ -332,10 +332,24 @@ export const FilesView = React.memo(function FilesView() {
 
               const allLocalFiles = await readFolderChildren(targetHandle, prefix, entry.handle);
 
-              // ONLY show files that belong to Google Drive or untagged legacy files
+              const activeFolder = folders.find(f => f.id === activeFolderId);
+              const folderProvider = activeFolder?.provider;
+
+              // If the active folder is explicitly configured for another cloud provider (e.g. 'dropbox'),
+              // do NOT show its local files in Google Drive!
+              if (folderProvider && folderProvider !== 'google') {
+                setFiles([]);
+                setLoading(false);
+                return;
+              }
+
+              // ONLY show files that belong to Google Drive
               const googleLocalFiles = allLocalFiles.filter(lf => {
                 const item = syncState[lf.path];
-                return !item?.provider || item.provider === 'google';
+                if (item?.provider) {
+                  return item.provider === 'google';
+                }
+                return !folderProvider || folderProvider === 'google';
               });
 
               // Check which local files have been uploaded to Drive
@@ -437,69 +451,27 @@ export const FilesView = React.memo(function FilesView() {
         return;
       } else {
         // Dropbox or OneDrive
-        const provider = getProvider(selectedCloudProvider);
-        const folderTarget = selectedCloudProvider === 'dropbox'
-          ? (currentPath ? `/${currentPath}` : '')
-          : (currentPath || 'root');
+        const activeFolder = activeFolderId ? folders.find(f => f.id === activeFolderId) : null;
+        const folderProvider = activeFolder?.provider;
 
-        let res;
-        try {
-          res = await provider.listFiles({
-            folderIdOrPath: folderTarget,
-            recursive: false,
-          });
-        } catch (providerErr: any) {
-          if (
-            providerErr?.status === 401 ||
-            providerErr?.message?.includes('401') ||
-            providerErr?.message?.includes('reconnect') ||
-            providerErr?.message?.includes('Not authenticated') ||
-            providerErr?.message?.includes('session expired')
-          ) {
-            console.warn(`[${selectedCloudProvider}] Session unauthenticated or expired.`, providerErr);
-            setFiles([]);
-            setLoading(false);
-            return;
-          }
-          if (
-            providerErr?.status === 403 ||
-            providerErr?.message?.includes('permissions missing') ||
-            providerErr?.message?.includes('not permitted') ||
-            providerErr?.message?.includes('required scope')
-          ) {
-            console.warn(`[${selectedCloudProvider}] Missing permissions or scope:`, providerErr);
-            setProviderPermissionError(providerErr.message);
-            setFiles([]);
-            setLoading(false);
-            return;
-          }
-          throw providerErr;
+        // If the active folder is explicitly configured for another cloud provider, do NOT show files here
+        if (activeFolder && folderProvider && folderProvider !== selectedCloudProvider) {
+          setFiles([]);
+          setLoading(false);
+          return;
         }
 
-        // Remote cloud items from this provider
-        const remoteItems: FileItem[] = res.items.map((item): FileItem => ({
-          id: item.id,
-          name: item.name,
-          type: item.isDirectory ? 'folder' : 'file',
-          isDirectory: item.isDirectory,
-          status: 'Synced',
-          size: item.isDirectory ? '--' : formatBytes(item.size),
-          sizeBytes: item.size,
-          path: item.path.startsWith('/') ? item.path.substring(1) : item.path,
-          date: formatDate(item.modifiedTime),
-          modifiedTime: item.modifiedTime,
-          mimeType: item.mimeType,
-          thumbnailLink: item.thumbnailUrl,
-          driveId: item.id,
-          provider: selectedCloudProvider,
-        }));
+        const provider = getProvider(selectedCloudProvider);
 
-        // If local folder is selected, check if there are any local files tagged for THIS provider
-        if (activeFolderId) {
+        if (activeFolder) {
+          // 1. Reading user's active folder for this provider
+          let targetHandle: any = null;
+          let allLocalFiles: LocalFile[] = [];
           try {
-            const entry = await getLocalFolderById(activeFolderId);
+            const entry = await getLocalFolderById(activeFolder.id);
             if (entry) {
-              let targetHandle = entry.handle;
+              setFolderPermissionPrompt(false);
+              targetHandle = entry.handle;
               const prefix = currentPath;
               if (currentPath !== '') {
                 const parts = currentPath.split('/');
@@ -507,36 +479,134 @@ export const FilesView = React.memo(function FilesView() {
                   targetHandle = await targetHandle.getDirectoryHandle(p);
                 }
               }
-              const allLocalFiles = await readFolderChildren(targetHandle, prefix, entry.handle);
-              const syncState = await getSyncState();
-
-              const remoteNames = new Set(res.items.map(i => i.name.toLowerCase()));
-              const providerLocalOnly = allLocalFiles
-                .filter(lf => syncState[lf.path]?.provider === selectedCloudProvider && !remoteNames.has(lf.name.toLowerCase()))
-                .map((lf): FileItem => ({
-                  id: lf.id,
-                  name: lf.name,
-                  type: lf.isDirectory ? 'folder' : 'file',
-                  isDirectory: lf.isDirectory,
-                  status: 'Local Only',
-                  size: lf.isDirectory ? '--' : formatBytes(lf.size),
-                  sizeBytes: lf.size,
-                  path: lf.path,
-                  date: formatDate(lf.lastModified),
-                  modifiedTime: lf.lastModified,
-                  mimeType: lf.mimeType,
-                  handle: lf.handle,
-                  provider: selectedCloudProvider,
-                }));
-
-              setFiles([...remoteItems, ...providerLocalOnly]);
-              setLoading(false);
-              return;
+              allLocalFiles = await readFolderChildren(targetHandle, prefix, entry.handle);
             }
-          } catch {}
+          } catch (localErr) {
+            console.warn(`Could not read local folder for ${selectedCloudProvider}:`, localErr);
+          }
+
+          // Query remote files inside this specific folder
+          const folderTarget = selectedCloudProvider === 'dropbox'
+            ? (currentPath ? `/${activeFolder.name}/${currentPath}` : `/${activeFolder.name}`)
+            : (currentPath ? `${activeFolder.name}/${currentPath}` : activeFolder.name);
+
+          let remoteItems: FileItem[] = [];
+          try {
+            const res = await provider.listFiles({
+              folderIdOrPath: folderTarget,
+              recursive: false,
+            });
+            remoteItems = res.items.map((item): FileItem => ({
+              id: item.id,
+              name: item.name,
+              type: item.isDirectory ? 'folder' : 'file',
+              isDirectory: item.isDirectory,
+              status: 'Synced',
+              size: item.isDirectory ? '--' : formatBytes(item.size),
+              sizeBytes: item.size,
+              path: item.path.startsWith('/') ? item.path.substring(1) : item.path,
+              date: formatDate(item.modifiedTime),
+              modifiedTime: item.modifiedTime,
+              mimeType: item.mimeType,
+              thumbnailLink: item.thumbnailUrl,
+              driveId: item.id,
+              provider: selectedCloudProvider,
+            }));
+          } catch (providerErr: any) {
+            if (
+              providerErr?.status === 401 ||
+              providerErr?.message?.includes('401') ||
+              providerErr?.message?.includes('reconnect') ||
+              providerErr?.message?.includes('Not authenticated') ||
+              providerErr?.message?.includes('session expired')
+            ) {
+              console.warn(`[${selectedCloudProvider}] Session unauthenticated or expired.`, providerErr);
+            } else if (
+              providerErr?.status === 403 ||
+              providerErr?.message?.includes('permissions missing') ||
+              providerErr?.message?.includes('not permitted') ||
+              providerErr?.message?.includes('required scope')
+            ) {
+              console.warn(`[${selectedCloudProvider}] Missing permissions or scope:`, providerErr);
+              setProviderPermissionError(providerErr.message);
+            }
+            // If remote folder doesn't exist yet on remote drive (404/not_found), remoteItems stays []
+          }
+
+          const syncState = await getSyncState();
+          const remoteByName = new Map(remoteItems.map(i => [i.name.toLowerCase(), i]));
+
+          const localItems: FileItem[] = allLocalFiles.map((lf): FileItem => {
+            const match = remoteByName.get(lf.name.toLowerCase());
+            return {
+              id: lf.id,
+              name: lf.name,
+              type: lf.isDirectory ? 'folder' : 'file',
+              isDirectory: lf.isDirectory,
+              status: match ? 'Synced' : 'Local Only',
+              size: lf.isDirectory ? '--' : formatBytes(lf.size),
+              sizeBytes: lf.size,
+              path: lf.path,
+              date: formatDate(lf.lastModified),
+              modifiedTime: lf.lastModified,
+              mimeType: lf.mimeType,
+              handle: lf.handle,
+              driveId: match?.id,
+              thumbnailLink: match?.thumbnailLink,
+              provider: selectedCloudProvider,
+            };
+          });
+
+          // Include remote-only items inside this specific folder
+          const localNames = new Set(allLocalFiles.map(lf => lf.name.toLowerCase()));
+          const remoteOnly = remoteItems.filter(ri => !localNames.has(ri.name.toLowerCase()));
+
+          setFiles([...localItems, ...remoteOnly]);
+          setLoading(false);
+          return;
         }
 
-        setFiles(remoteItems);
+        // 2. If NO local folder is selected: ONLY show files explicitly uploaded/tracked by user for this provider
+        const syncState = await getSyncState();
+        const userUploadedEntries = Object.entries(syncState).filter(([, item]) => {
+          return item.provider === selectedCloudProvider;
+        });
+
+        if (userUploadedEntries.length > 0) {
+          const uploadedItems: FileItem[] = userUploadedEntries
+            .filter(([path]) => {
+              if (!currentPath) {
+                return !path.includes('/');
+              }
+              return path.startsWith(currentPath + '/') && !path.substring(currentPath.length + 1).includes('/');
+            })
+            .map(([path, item]): FileItem => {
+              const fileName = path.split('/').pop() || path;
+              return {
+                id: item.remoteId || path,
+                name: fileName,
+                type: 'file',
+                isDirectory: false,
+                status: 'Synced',
+                size: formatBytes(item.size),
+                sizeBytes: item.size,
+                path: path,
+                date: formatDate(item.lastModified),
+                modifiedTime: item.lastModified,
+                driveId: item.remoteId,
+                provider: selectedCloudProvider,
+              };
+            });
+
+          setFiles(uploadedItems);
+          setLoading(false);
+          return;
+        }
+
+        // 3. No folder selected and no files uploaded for this provider
+        setFiles([]);
+        setLoading(false);
+        return;
       }
     } catch (err: any) {
       console.error(`Error loading ${selectedCloudProvider} files:`, err);
@@ -1079,6 +1149,8 @@ export const FilesView = React.memo(function FilesView() {
                   setCurrentPath('');
                   setSelectedIds(new Set());
                   setProviderPermissionError(null);
+                  const match = folders.find(f => (f.provider || 'google') === 'google');
+                  setActiveFolderId(match ? match.id : null);
                 }}
                 className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
                   selectedCloudProvider === 'google'
@@ -1095,6 +1167,8 @@ export const FilesView = React.memo(function FilesView() {
                   setCurrentPath('');
                   setSelectedIds(new Set());
                   setProviderPermissionError(null);
+                  const match = folders.find(f => f.provider === 'dropbox');
+                  setActiveFolderId(match ? match.id : null);
                 }}
                 className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
                   selectedCloudProvider === 'dropbox'
@@ -1111,6 +1185,8 @@ export const FilesView = React.memo(function FilesView() {
                   setCurrentPath('');
                   setSelectedIds(new Set());
                   setProviderPermissionError(null);
+                  const match = folders.find(f => f.provider === 'onedrive');
+                  setActiveFolderId(match ? match.id : null);
                 }}
                 className={`px-2.5 py-1 rounded-lg transition-all text-xs ${
                   selectedCloudProvider === 'onedrive'
@@ -1194,62 +1270,137 @@ export const FilesView = React.memo(function FilesView() {
 
         {/* Row 2: Toolbar */}
         <div className="flex flex-wrap items-center gap-2 py-2.5 border-t border-border/50">
-          <div className="relative">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
-              className="flex items-center justify-between min-w-[170px] max-w-[240px] gap-2 px-3 py-1.5 bg-secondary/80 border border-border/80 hover:border-primary/50 rounded-xl transition-all group"
-            >
-              <div className="flex items-center gap-2.5 truncate">
-                <Folder size={15} className="text-primary shrink-0" />
-                <span className="text-xs sm:text-sm font-semibold text-foreground truncate">
-                  {activeFolder?.name || 'Select Folder'}
-                </span>
-              </div>
-              <ChevronDown size={14} className={`text-muted-foreground shrink-0 transition-transform duration-200 ${isFolderDropdownOpen ? 'rotate-180' : ''}`} />
-            </motion.button>
+          {(() => {
+            const isMatch = (f: SyncFolder) => {
+              if (selectedCloudProvider === 'google') return !f.provider || f.provider === 'google';
+              return f.provider === selectedCloudProvider;
+            };
+            const providerFolders = folders.filter(isMatch);
+            const otherFolders = folders.filter(f => !isMatch(f));
+            const currentActiveMatches = activeFolder && isMatch(activeFolder);
 
-            <AnimatePresence>
-              {isFolderDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setIsFolderDropdownOpen(false)} />
-                  <motion.div
-                    initial={{ opacity: 0, y: 4, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute left-0 top-full mt-1.5 w-60 bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
-                  >
-                    <div className="max-h-60 overflow-y-auto p-1 hide-scrollbar space-y-1">
-                      {folders.map(folder => (
-                        <button
-                          key={folder.id}
-                          onClick={() => {
-                            setActiveFolderId(folder.id);
-                            setIsFolderDropdownOpen(false);
-                          }}
-                          className={`flex items-center justify-between w-full text-left px-3 py-2 rounded-xl text-xs sm:text-sm transition-colors ${
-                            activeFolderId === folder.id 
-                              ? 'bg-primary/10 text-primary font-medium' 
-                              : 'text-foreground hover:bg-secondary/70'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 truncate mr-2">
-                            <Folder size={14} className={activeFolderId === folder.id ? 'text-primary' : 'text-muted-foreground shrink-0'} />
-                            <span className="truncate">{folder.name}</span>
-                          </div>
-                          {activeFolderId === folder.id && (
-                            <CheckCircle size={14} className="text-primary shrink-0" />
+            return (
+              <div className="relative">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setIsFolderDropdownOpen(!isFolderDropdownOpen)}
+                  className="flex items-center justify-between min-w-[170px] max-w-[240px] gap-2 px-3 py-1.5 bg-secondary/80 border border-border/80 hover:border-primary/50 rounded-xl transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 truncate">
+                    <Folder size={15} className="text-primary shrink-0" />
+                    <span className="text-xs sm:text-sm font-semibold text-foreground truncate">
+                      {currentActiveMatches ? activeFolder?.name : (providerFolders[0]?.name || 'Select Folder')}
+                    </span>
+                  </div>
+                  <ChevronDown size={14} className={`text-muted-foreground shrink-0 transition-transform duration-200 ${isFolderDropdownOpen ? 'rotate-180' : ''}`} />
+                </motion.button>
+
+                <AnimatePresence>
+                  {isFolderDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsFolderDropdownOpen(false)} />
+                      <motion.div
+                        initial={{ opacity: 0, y: 4, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 4, scale: 0.98 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 top-full mt-1.5 w-64 bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
+                      >
+                        <div className="max-h-64 overflow-y-auto p-1 hide-scrollbar space-y-1">
+                          {providerFolders.length === 0 ? (
+                            <div className="px-3 py-3 text-center text-xs text-muted-foreground">
+                              No {selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive'} folders linked
+                            </div>
+                          ) : (
+                            providerFolders.map(folder => (
+                              <button
+                                key={folder.id}
+                                onClick={() => {
+                                  setActiveFolderId(folder.id);
+                                  setIsFolderDropdownOpen(false);
+                                }}
+                                className={`flex items-center justify-between w-full text-left px-3 py-2 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer ${
+                                  activeFolderId === folder.id 
+                                    ? 'bg-primary/10 text-primary font-medium' 
+                                    : 'text-foreground hover:bg-secondary/70'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 truncate mr-2">
+                                  <Folder size={14} className={activeFolderId === folder.id ? 'text-primary' : 'text-muted-foreground shrink-0'} />
+                                  <span className="truncate">{folder.name}</span>
+                                </div>
+                                {activeFolderId === folder.id && (
+                                  <CheckCircle size={14} className="text-primary shrink-0" />
+                                )}
+                              </button>
+                            ))
                           )}
-                        </button>
-                      ))}
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+
+                          {otherFolders.length > 0 && (
+                            <div className="pt-2 mt-1 border-t border-border/60">
+                              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                Folders on other drives
+                              </div>
+                              {otherFolders.map(folder => {
+                                const folderProv = folder.provider || 'google';
+                                const provName = folderProv === 'dropbox' ? 'Dropbox' : folderProv === 'onedrive' ? 'OneDrive' : 'Drive';
+                                return (
+                                  <button
+                                    key={folder.id}
+                                    onClick={async () => {
+                                      await updateLocalFolderProvider(folder.id, selectedCloudProvider);
+                                      const infos = await getLocalFolderInfos();
+                                      setFolders(infos);
+                                      setActiveFolderId(folder.id);
+                                      setIsFolderDropdownOpen(false);
+                                      const targetName = selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
+                                      showToast(`Moved "${folder.name}" to ${targetName}`, 'success');
+                                      loadFiles();
+                                    }}
+                                    className="flex items-center justify-between w-full text-left px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/70 transition-colors group cursor-pointer"
+                                    title={`Click to link "${folder.name}" to ${selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive'}`}
+                                  >
+                                    <div className="flex items-center gap-2 truncate mr-2">
+                                      <Folder size={13} className="text-muted-foreground shrink-0" />
+                                      <span className="truncate">{folder.name}</span>
+                                      <span className="text-[10px] opacity-70">({provName})</span>
+                                    </div>
+                                    <span className="text-[10px] text-primary opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
+                                      Switch
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })()}
+
+          {/* Provider Mismatch Helper Button */}
+          {activeFolder && (activeFolder.provider || 'google') !== selectedCloudProvider && (
+            <button
+              onClick={async () => {
+                await updateLocalFolderProvider(activeFolder.id, selectedCloudProvider);
+                const infos = await getLocalFolderInfos();
+                setFolders(infos);
+                const targetName = selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
+                showToast(`Folder "${activeFolder.name}" linked to ${targetName}`, 'success');
+                loadFiles();
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 transition-all cursor-pointer shadow-xs"
+              title={`Currently linked to ${(activeFolder.provider || 'google')}. Click to switch target to ${selectedCloudProvider}.`}
+            >
+              <AlertTriangle size={13} className="shrink-0" />
+              <span>Linked to {(activeFolder.provider || 'google') === 'dropbox' ? 'Dropbox' : (activeFolder.provider || 'google') === 'onedrive' ? 'OneDrive' : 'Google Drive'} — Click to sync with {selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive'}</span>
+            </button>
+          )}
           
           {/* + New dropdown */}
           <div className="relative">
@@ -1902,11 +2053,12 @@ export const FilesView = React.memo(function FilesView() {
             onSaved={async () => {
               if (pendingFolderHandle) {
                  try {
-                   const entry = await commitLocalFolder(pendingFolderHandle);
+                   const entry = await commitLocalFolder(pendingFolderHandle, selectedCloudProvider);
                    const infos = await getLocalFolderInfos();
                    setFolders(infos);
                    setActiveFolderId(entry.id);
-                   showToast(`Added folder "${entry.info.name}"`, 'success');
+                   const providerLabel = selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
+                   showToast(`Added folder "${entry.info.name}" linked to ${providerLabel}`, 'success');
                  } catch (err: any) {
                    showToast(err.message || 'Failed to add folder', 'error');
                  }

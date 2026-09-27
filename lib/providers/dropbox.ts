@@ -145,8 +145,12 @@ export class DropboxProvider implements CloudProvider {
       errSummary.includes('required scope') ||
       errSummary.includes('missing_scope')
     ) {
+      if (typeof document !== 'undefined') {
+        document.cookie = 'dbx_access_token=; path=/; max-age=0';
+        document.cookie = 'dbx_user=; path=/; max-age=0';
+      }
       return new ProviderError(
-        `Dropbox permissions missing. Please ensure 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write' scopes are enabled in Dropbox App Console (Permissions tab) and reconnect.`,
+        `Dropbox permissions missing. Please ensure 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write' scopes are enabled in Dropbox App Console (Permissions tab), then click Reconnect.`,
         this.id,
         403
       );
@@ -376,9 +380,18 @@ export class DropboxProvider implements CloudProvider {
           throw new ProviderError('Dropbox session expired. Please reconnect your account.', this.id, 401);
         }
 
-        if (errSummary.includes('not permitted to access this endpoint') || errSummary.includes('required scope')) {
+        if (
+          res.status === 403 ||
+          errSummary.includes('not permitted to access this endpoint') ||
+          errSummary.includes('required scope') ||
+          errSummary.includes('missing_scope')
+        ) {
+          if (typeof document !== 'undefined') {
+            document.cookie = 'dbx_access_token=; path=/; max-age=0';
+            document.cookie = 'dbx_user=; path=/; max-age=0';
+          }
           throw new ProviderError(
-            `Dropbox permissions missing. Please enable 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write' in the Dropbox App Console > Permissions tab and reconnect.`,
+            `Dropbox permissions missing. Please enable 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write' in the Dropbox App Console > Permissions tab, then click Reconnect.`,
             this.id,
             403
           );

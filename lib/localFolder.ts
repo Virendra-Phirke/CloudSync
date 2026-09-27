@@ -14,11 +14,14 @@ export interface FolderInfo {
   savedAt: number;
 }
 
+import { CloudProviderType } from './providers/types';
+
 export interface SyncFolder {
   id: string;
   name: string;
   savedAt: number;
   desktopRootId?: string;
+  provider?: CloudProviderType;
 }
 
 export interface SyncFolderEntry {
@@ -904,13 +907,13 @@ export async function pickAndInitFolder(): Promise<any> {
 }
 
 /** Saves a directory handle to the application's local folder list. */
-export async function commitLocalFolder(handle: any): Promise<SyncFolderEntry> {
+export async function commitLocalFolder(handle: any, provider: CloudProviderType = 'google'): Promise<SyncFolderEntry> {
   const id = `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const desktopRootId = handle?.rootId || (isDesktop() ? id : undefined);
   const entry: SyncFolderEntry = {
     id,
     handle,
-    info: { id, name: handle.name, savedAt: Date.now(), desktopRootId },
+    info: { id, name: handle.name, savedAt: Date.now(), desktopRootId, provider },
   };
   
   const existing = await getLocalFolders();
@@ -925,11 +928,26 @@ export async function commitLocalFolder(handle: any): Promise<SyncFolderEntry> {
   return entry;
 }
 
+/** Updates the target cloud provider for a local folder */
+export async function updateLocalFolderProvider(id: string, provider: CloudProviderType): Promise<void> {
+  const existing = await getLocalFolders();
+  const updated = existing.map(f => {
+    if (f.id === id) {
+      return {
+        ...f,
+        info: { ...f.info, provider },
+      };
+    }
+    return f;
+  });
+  await saveFolders(updated);
+}
+
 /** Prompts user to pick a directory and adds it to the folder list directly. */
-export async function addLocalFolder(): Promise<SyncFolderEntry | null> {
+export async function addLocalFolder(provider: CloudProviderType = 'google'): Promise<SyncFolderEntry | null> {
   const handle = await pickAndInitFolder();
   if (!handle) return null;
-  return await commitLocalFolder(handle);
+  return await commitLocalFolder(handle, provider);
 }
 
 /** Remove a folder from the list by ID. */
