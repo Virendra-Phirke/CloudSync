@@ -1276,7 +1276,6 @@ export const FilesView = React.memo(function FilesView() {
               return f.provider === selectedCloudProvider;
             };
             const providerFolders = folders.filter(isMatch);
-            const otherFolders = folders.filter(f => !isMatch(f));
             const currentActiveMatches = activeFolder && isMatch(activeFolder);
 
             return (
@@ -1305,9 +1304,9 @@ export const FilesView = React.memo(function FilesView() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 4, scale: 0.98 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute left-0 top-full mt-1.5 w-64 bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
+                        className="absolute left-0 top-full mt-1.5 w-60 bento-block !p-1.5 shadow-2xl z-50 overflow-hidden"
                       >
-                        <div className="max-h-64 overflow-y-auto p-1 hide-scrollbar space-y-1">
+                        <div className="max-h-60 overflow-y-auto p-1 hide-scrollbar space-y-1">
                           {providerFolders.length === 0 ? (
                             <div className="px-3 py-3 text-center text-xs text-muted-foreground">
                               No {selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive'} folders linked
@@ -1326,7 +1325,7 @@ export const FilesView = React.memo(function FilesView() {
                                     : 'text-foreground hover:bg-secondary/70'
                                 }`}
                               >
-                                <div className="flex items-center gap-2 truncate mr-2">
+                                <div className="flex items-center gap-2.5 truncate mr-2">
                                   <Folder size={14} className={activeFolderId === folder.id ? 'text-primary' : 'text-muted-foreground shrink-0'} />
                                   <span className="truncate">{folder.name}</span>
                                 </div>
@@ -1336,44 +1335,6 @@ export const FilesView = React.memo(function FilesView() {
                               </button>
                             ))
                           )}
-
-                          {otherFolders.length > 0 && (
-                            <div className="pt-2 mt-1 border-t border-border/60">
-                              <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                Folders on other drives
-                              </div>
-                              {otherFolders.map(folder => {
-                                const folderProv = folder.provider || 'google';
-                                const provName = folderProv === 'dropbox' ? 'Dropbox' : folderProv === 'onedrive' ? 'OneDrive' : 'Drive';
-                                return (
-                                  <button
-                                    key={folder.id}
-                                    onClick={async () => {
-                                      await updateLocalFolderProvider(folder.id, selectedCloudProvider);
-                                      const infos = await getLocalFolderInfos();
-                                      setFolders(infos);
-                                      setActiveFolderId(folder.id);
-                                      setIsFolderDropdownOpen(false);
-                                      const targetName = selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
-                                      showToast(`Moved "${folder.name}" to ${targetName}`, 'success');
-                                      loadFiles();
-                                    }}
-                                    className="flex items-center justify-between w-full text-left px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-secondary/70 transition-colors group cursor-pointer"
-                                    title={`Click to link "${folder.name}" to ${selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive'}`}
-                                  >
-                                    <div className="flex items-center gap-2 truncate mr-2">
-                                      <Folder size={13} className="text-muted-foreground shrink-0" />
-                                      <span className="truncate">{folder.name}</span>
-                                      <span className="text-[10px] opacity-70">({provName})</span>
-                                    </div>
-                                    <span className="text-[10px] text-primary opacity-0 group-hover:opacity-100 transition-opacity font-semibold">
-                                      Switch
-                                    </span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
                         </div>
                       </motion.div>
                     </>
@@ -1382,25 +1343,6 @@ export const FilesView = React.memo(function FilesView() {
               </div>
             );
           })()}
-
-          {/* Provider Mismatch Helper Button */}
-          {activeFolder && (activeFolder.provider || 'google') !== selectedCloudProvider && (
-            <button
-              onClick={async () => {
-                await updateLocalFolderProvider(activeFolder.id, selectedCloudProvider);
-                const infos = await getLocalFolderInfos();
-                setFolders(infos);
-                const targetName = selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive';
-                showToast(`Folder "${activeFolder.name}" linked to ${targetName}`, 'success');
-                loadFiles();
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/20 transition-all cursor-pointer shadow-xs"
-              title={`Currently linked to ${(activeFolder.provider || 'google')}. Click to switch target to ${selectedCloudProvider}.`}
-            >
-              <AlertTriangle size={13} className="shrink-0" />
-              <span>Linked to {(activeFolder.provider || 'google') === 'dropbox' ? 'Dropbox' : (activeFolder.provider || 'google') === 'onedrive' ? 'OneDrive' : 'Google Drive'} — Click to sync with {selectedCloudProvider === 'dropbox' ? 'Dropbox' : selectedCloudProvider === 'onedrive' ? 'OneDrive' : 'Google Drive'}</span>
-            </button>
-          )}
           
           {/* + New dropdown */}
           <div className="relative">
