@@ -11,10 +11,21 @@ docs/
 .agents/
 *.tsbuildinfo
 
+# Credential and secret files — NEVER commit these
+*.pem
+*.key
+*.pfx
+*.p12
+*service-account*.json
+*serviceaccount*.json
+*credentials*.json
+*.token.json
+desktop-session.enc
+.desktop-data/
+
 # Desktop Build Artifacts
 desktop/electron/node_modules/
 desktop/electron/dist/
 desktop/electron/out/
 desktop/electron/out_dist/
 desktop/electron/standalone/
-.desktop-data/

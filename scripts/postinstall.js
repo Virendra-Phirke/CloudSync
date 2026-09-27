@@ -51,3 +51,16 @@ if (process.platform === 'win32' && process.arch === 'x64') {
     console.warn('[postinstall] ⚠ @tailwindcss/oxide-win32-x64-msvc binary not found, skipping.');
   }
 }
+
+// Install git pre-commit hook for secret scanning
+const hookSrc = path.join(__dirname, 'hooks', 'pre-commit-secret-scan.js');
+const gitDir = path.join(__dirname, '..', '.git');
+const hooksDir = path.join(gitDir, 'hooks');
+const hookDest = path.join(hooksDir, 'pre-commit');
+
+if (fs.existsSync(gitDir) && fs.existsSync(hookSrc)) {
+  if (!fs.existsSync(hooksDir)) fs.mkdirSync(hooksDir, { recursive: true });
+  const hookContent = `#!/bin/sh\nnode "${hookSrc.replace(/\\/g, '/')}"\n`;
+  fs.writeFileSync(hookDest, hookContent, { encoding: 'utf8', mode: 0o755 });
+  console.log('[postinstall] ✓ Installed pre-commit secret scan hook.');
+}

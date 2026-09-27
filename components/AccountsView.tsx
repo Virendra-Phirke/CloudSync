@@ -59,30 +59,36 @@ export const AccountsView = React.memo(function AccountsView() {
     loadConnections();
 
     // initAuth handles Google auth state changes via the desktop:authChanged IPC push.
-    // onSuccess fires when login completes; onFailure fires on logout/error.
     const unsub = initAuth(
       (user) => {
-        // Google login succeeded (IPC push from authService after popup closes)
         setConnectingProvider(null);
         loadConnections();
       },
       () => {
-        // Logged out or session invalid
         setConnectingProvider(null);
         loadConnections();
       }
     );
 
-    // Desktop: listen for successful Dropbox / OneDrive OAuth completions
-    const onProviderConnected = () => {
+    // desktop:providerConnected fires for ALL providers (Google, Dropbox, OneDrive)
+    // when login succeeds — dispatched by initiateOAuth / initiateProviderOAuth
+    const onConnected = () => {
       setConnectingProvider(null);
       loadConnections();
     };
-    window.addEventListener('desktop:providerConnected', onProviderConnected);
+
+    // desktop:providerConnectFailed fires when the user closes the popup or auth errors out
+    const onFailed = () => {
+      setConnectingProvider(null);
+    };
+
+    window.addEventListener('desktop:providerConnected', onConnected);
+    window.addEventListener('desktop:providerConnectFailed', onFailed);
 
     return () => {
       unsub();
-      window.removeEventListener('desktop:providerConnected', onProviderConnected);
+      window.removeEventListener('desktop:providerConnected', onConnected);
+      window.removeEventListener('desktop:providerConnectFailed', onFailed);
     };
   }, [loadConnections]);
 

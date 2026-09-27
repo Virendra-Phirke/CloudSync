@@ -5,7 +5,14 @@ import path from 'path';
 import { getMainWindow } from '../main/window';
 import { logger } from '../utils/logger';
 
-const BACKEND_URL = process.env.CLOUDSYNC_BACKEND_URL || 'https://cloud-sync-woad.vercel.app';
+const BACKEND_URL = process.env.CLOUDSYNC_BACKEND_URL || 'https://cloudsync.itsvirendra.in';
+
+// Local app URL — set by window.ts after resolveAppUrl() resolves.
+let APP_URL = 'http://localhost:3000';
+export function setAppUrl(url: string) {
+  APP_URL = url;
+  logger.info('AUTH', `App URL set to: ${url}`);
+}
 
 type CloudProvider = 'google' | 'dropbox' | 'onedrive';
 
@@ -25,9 +32,14 @@ export interface DesktopUser {
   picture: string;
 }
 
-interface StoredSession {
+export interface StoredSession {
   sessionToken: string;
   user: DesktopUser;
+  providers?: Record<string, {
+    token: string;
+    expiresAt: number;
+    user: DesktopUser;
+  }>;
 }
 
 class DesktopAuthService {
@@ -38,6 +50,22 @@ class DesktopAuthService {
   private getSessionFilePath(): string {
     const userData = app ? app.getPath('userData') : path.join(process.cwd(), '.desktop-data');
     return path.join(userData, 'desktop-session.enc');
+  }
+
+  /**
+   * Resolves the base URL for OAuth flows.
+   * If local dev server (port 3000) is running and responds to the auth route, uses localhost:3000.
+   * Otherwise falls back to production BACKEND_URL (https://cloudsync.itsvirendra.in).
+   */
+  public async resolveAuthEndpoint(provider: string): Promise<string> {
+    try {
+      const probePath = provider === 'google' ? 'desktop?challenge=ping&state=ping' : provider;
+      const res = await fetch(`http://localhost:3000/api/auth/${probePath}`, { method: 'HEAD', redirect: 'manual' });
+      if (res.status < 400 || res.status === 307 || res.status === 302) {
+        return 'http://localhost:3000';
+      }
+    } catch {}
+    return BACKEND_URL;
   }
 
   /**
@@ -61,6 +89,17 @@ class DesktopAuthService {
       }
 
       this.memorySession = JSON.parse(jsonStr) as StoredSession;
+
+      // Restore provider caches
+      if (this.memorySession.providers) {
+        for (const [p, data] of Object.entries(this.memorySession.providers)) {
+          if (data?.token && Date.now() < (data.expiresAt || 0)) {
+            providerTokenCache[p] = { token: data.token, expiresAt: data.expiresAt };
+            providerUserCache[p] = data.user;
+          }
+        }
+      }
+
       return this.memorySession;
     } catch (err) {
       logger.error('AUTH', 'Failed to read/decrypt desktop session file', err);
@@ -71,7 +110,7 @@ class DesktopAuthService {
   /**
    * Saves the CloudSync session token into OS-backed safeStorage.
    */
-  private async saveSession(session: StoredSession): Promise<void> {
+  public async saveSession(session: StoredSession): Promise<void> {
     this.memorySession = session;
     const filePath = this.getSessionFilePath();
     const jsonStr = JSON.stringify(session);
@@ -171,9 +210,12 @@ class DesktopAuthService {
    */
   public async login(): Promise<boolean> {
     const codeVerifier = crypto.randomBytes(32).toString('base64url');
+    const challenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
     const state = crypto.randomBytes(16).toString('hex');
 
-    const authUrl = `${BACKEND_URL}/api/auth/google`;
+    const authBaseUrl = await this.resolveAuthEndpoint('google');
+    const authUrl = `${authBaseUrl}/api/auth/desktop?challenge=${encodeURIComponent(challenge)}&state=${encodeURIComponent(state)}`;
+    logger.info('AUTH', `Starting Google OAuth flow via: ${authUrl}`);
 
     return new Promise((resolve) => {
       const parent = getMainWindow();
@@ -195,7 +237,11 @@ class DesktopAuthService {
       });
 
       const safeClose = () => {
-        try { if (!authWindow.isDestroyed()) authWindow.close(); } catch {}
+        try {
+          if (!authWindow.isDestroyed()) {
+            authWindow.close();
+          }
+        } catch {}
       };
 
       const resolveOnce = (value: boolean) => {
@@ -207,7 +253,20 @@ class DesktopAuthService {
 
       authWindow.on('closed', () => resolveOnce(false));
 
-      // Security: Only allow navigation to Google OAuth domains and the CloudSync backend
+      // Security: Allowed hostnames for Google OAuth
+      let appHost = 'localhost';
+      try { appHost = new URL(APP_URL).hostname; } catch {}
+      let backendHost = 'cloud-sync-woad.vercel.app';
+      try { backendHost = new URL(BACKEND_URL).hostname; } catch {}
+
+      const allowedHosts = [
+        appHost,
+        backendHost,
+        'cloudsync.itsvirendra.in',
+        'localhost',
+        '127.0.0.1',
+      ];
+
       authWindow.webContents.on('will-navigate', (event, url) => {
         try {
           const parsed = new URL(url);
@@ -217,31 +276,40 @@ class DesktopAuthService {
             parsed.hostname.includes('.google.') ||
             parsed.hostname.endsWith('.googleusercontent.com') ||
             parsed.hostname.endsWith('.gstatic.com');
-          const isBackend =
-            parsed.hostname === new URL(BACKEND_URL).hostname ||
-            parsed.hostname === 'localhost';
+          const isAllowedApp = allowedHosts.some(
+            (h) => parsed.hostname === h || parsed.hostname.endsWith('.' + h)
+          );
 
-          if (!isGoogle && !isBackend) {
+          if (!isGoogle && !isAllowedApp) {
             event.preventDefault();
-            logger.warn('AUTH', `Blocked unapproved OAuth navigation to: ${url}`);
+            logger.warn('AUTH', `Blocked unapproved Google OAuth navigation to: ${url}`);
           }
         } catch {
           event.preventDefault();
         }
       });
 
-      /**
-       * Reads cookies from the auth window session and extracts g_access_token + g_user.
-       * Uses flushStore() to guarantee the OS cookie store has been written.
-       */
-      const extractSessionCookies = async (): Promise<{ user: DesktopUser; token: string } | null> => {
-        // Flush the cookie store to ensure Set-Cookie headers are committed
+      const extractGoogleCookies = async (): Promise<{ user: DesktopUser; token: string } | null> => {
         try {
           await authWindow.webContents.session.cookies.flushStore();
         } catch {}
 
-        for (let attempt = 0; attempt < 20; attempt++) {
-          let cookies = await authWindow.webContents.session.cookies.get({ url: BACKEND_URL });
+        for (let attempt = 0; attempt < 25; attempt++) {
+          if (authWindow.isDestroyed()) return null;
+
+          let cookies = await authWindow.webContents.session.cookies.get({ url: APP_URL });
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: BACKEND_URL });
+          }
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: 'https://cloudsync.itsvirendra.in' });
+          }
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: 'https://cloud-sync-woad.vercel.app' });
+          }
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: 'http://localhost:3000' });
+          }
           if (!cookies || cookies.length === 0) {
             cookies = await authWindow.webContents.session.cookies.get({});
           }
@@ -255,73 +323,75 @@ class DesktopAuthService {
               return { user, token: accessTokenCookie.value };
             } catch (err) {
               logger.error('AUTH', 'Failed to parse g_user cookie', err);
-              return null;
             }
           }
 
-          await new Promise((r) => setTimeout(r, 300));
+          await new Promise((r) => setTimeout(r, 200));
         }
 
         return null;
       };
 
-      /**
-       * Called when the auth window navigates to a URL we need to handle.
-       * IMPORTANT: We handle auth_success ONLY on did-navigate (not will-redirect)
-       * because Set-Cookie headers are committed to the session only after the
-       * full HTTP response has been processed.
-       */
-      const handleNavigation = async (url: string, source: 'will-redirect' | 'did-navigate') => {
+      const finishSuccess = async () => {
+        if (resolved) return;
+        logger.info('AUTH', 'Google auth_success detected. Extracting session cookies...');
+
+        const result = await extractGoogleCookies();
+        if (result && !resolved) {
+          resolved = true;
+          this.cachedAccessToken = result.token;
+          this.tokenExpiresAt = Date.now() + 3500 * 1000;
+
+          const session = (await this.getSession()) || { sessionToken: 'cookie_session', user: result.user };
+          session.user = result.user;
+          session.sessionToken = 'cookie_session';
+          await this.saveSession(session);
+
+          safeClose();
+
+          const win = getMainWindow();
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('desktop:authChanged', { user: result.user });
+          }
+
+          logger.info('AUTH', `Google login successful for: ${result.user.email}`);
+          resolve(true);
+        } else if (!resolved) {
+          logger.warn('AUTH', 'Google auth completed but session cookies not found');
+          safeClose();
+          resolve(false);
+        }
+      };
+
+      // Listen for cookie changed event in session for immediate detection
+      const cookieListener = (_event: any, cookie: any) => {
+        if (cookie.name === 'g_access_token' || cookie.name === 'g_user') {
+          finishSuccess();
+        }
+      };
+      authWindow.webContents.session.cookies.on('changed', cookieListener);
+      authWindow.on('closed', () => {
+        try {
+          authWindow.webContents.session.cookies.removeListener('changed', cookieListener);
+        } catch {}
+      });
+
+      const handleNavigation = async (url: string) => {
         if (resolved) return;
 
         try {
           const parsed = new URL(url);
 
-          // Error path — handle immediately regardless of source
           if (parsed.searchParams.has('auth_error')) {
             const errCode = parsed.searchParams.get('auth_error');
-            logger.error('AUTH', `OAuth failed with error code: ${errCode}`);
-            resolveOnce(false);
+            logger.error('AUTH', `Google OAuth failed with error code: ${errCode}`);
             safeClose();
+            resolveOnce(false);
             return;
           }
 
-          // Success path — ONLY extract cookies on did-navigate, not will-redirect,
-          // because cookies from the backend redirect are not yet in the session store
-          // when will-redirect fires.
-          if (parsed.searchParams.has('auth_success')) {
-            if (source === 'will-redirect') {
-              // Just log; wait for did-navigate to fire with cookies committed
-              logger.info('AUTH', 'auth_success detected in will-redirect — waiting for did-navigate...');
-              return;
-            }
-
-            // did-navigate: cookies should now be available
-            resolved = true;
-            logger.info('AUTH', 'auth_success on did-navigate. Extracting session cookies...');
-
-            const result = await extractSessionCookies();
-            if (result) {
-              this.cachedAccessToken = result.token;
-              this.tokenExpiresAt = Date.now() + 3500 * 1000;
-
-              await this.saveSession({ sessionToken: 'cookie_session', user: result.user });
-
-              safeClose();
-
-              // Notify the main window immediately — triggers initAuth onSuccess
-              const win = getMainWindow();
-              if (win && !win.isDestroyed()) {
-                win.webContents.send('desktop:authChanged', { user: result.user });
-              }
-
-              logger.info('AUTH', `Google login successful for: ${result.user.email}`);
-              resolve(true);
-            } else {
-              logger.warn('AUTH', 'auth_success received but cookies not found after 6s');
-              safeClose();
-              resolve(false);
-            }
+          if (parsed.searchParams.has('auth_success') || url.includes('auth_success')) {
+            finishSuccess();
             return;
           }
 
@@ -332,25 +402,31 @@ class DesktopAuthService {
 
             if (returnState !== state || !code) {
               logger.error('AUTH', 'Invalid state or missing code in desktop OAuth callback');
-              resolveOnce(false);
               safeClose();
+              resolveOnce(false);
               return;
             }
 
             safeClose();
 
-            const exchangeRes = await fetch(`${BACKEND_URL}/api/auth/desktop/exchange`, {
+            const exchangeRes = await fetch(`${authBaseUrl}/api/auth/desktop/exchange`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ code, verifier: codeVerifier }),
-            });
+            }).catch(() =>
+              fetch(`${BACKEND_URL}/api/auth/desktop/exchange`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, verifier: codeVerifier }),
+              })
+            );
 
-            if (!exchangeRes.ok) {
+            if (!exchangeRes || !exchangeRes.ok) {
               resolveOnce(false);
               return;
             }
 
-            const data = await exchangeRes.json() as {
+            const data = (await exchangeRes.json()) as {
               sessionToken: string;
               user: DesktopUser;
               accessToken: string;
@@ -369,22 +445,17 @@ class DesktopAuthService {
             resolve(true);
           }
         } catch (err) {
-          logger.error('AUTH', 'Error processing OAuth callback URL', err);
+          logger.error('AUTH', 'Error processing Google OAuth navigation URL', err);
         }
       };
 
-      // will-redirect: good for catching error responses early; NOT for reading cookies
-      authWindow.webContents.on('will-redirect', (_event, url) => {
-        handleNavigation(url, 'will-redirect');
-      });
-
-      // did-navigate: fires after page load and cookie commit — use this for cookie extraction
-      authWindow.webContents.on('did-navigate', (_event, url) => {
-        handleNavigation(url, 'did-navigate');
-      });
+      authWindow.webContents.on('will-redirect', (_event, url) => handleNavigation(url));
+      authWindow.webContents.on('did-navigate', (_event, url) => handleNavigation(url));
+      authWindow.webContents.on('did-navigate-in-page', (_event, url) => handleNavigation(url));
 
       authWindow.loadURL(authUrl).catch((err) => {
         logger.error('AUTH', 'Failed to load Google OAuth URL', err);
+        safeClose();
         resolveOnce(false);
       });
     });
@@ -392,7 +463,7 @@ class DesktopAuthService {
 
   /**
    * Initiates OAuth for Dropbox or OneDrive via an isolated BrowserWindow.
-   * Follows the same cookie-intercept pattern as Google login.
+   * Uses local embedded server APP_URL (which has provider credentials from .env.local).
    */
   public async loginWithProvider(provider: CloudProvider): Promise<boolean> {
     if (provider === 'google') return this.login();
@@ -403,23 +474,31 @@ class DesktopAuthService {
       return false;
     }
 
-    // Determine allowed hostnames for this provider's auth flow
+    let appHost = 'localhost';
+    try { appHost = new URL(APP_URL).hostname; } catch {}
+    let backendHost = 'cloud-sync-woad.vercel.app';
+    try { backendHost = new URL(BACKEND_URL).hostname; } catch {}
+
     const allowedHosts: string[] = [
-      new URL(BACKEND_URL).hostname,
+      appHost,
+      backendHost,
+      'cloudsync.itsvirendra.in',
       'localhost',
+      '127.0.0.1',
     ];
     if (provider === 'dropbox') {
-      allowedHosts.push('www.dropbox.com', 'dropbox.com', 'notify.dropboxapi.com');
+      allowedHosts.push('www.dropbox.com', 'dropbox.com', 'api.dropbox.com', 'notify.dropboxapi.com');
     } else if (provider === 'onedrive') {
       allowedHosts.push(
         'login.microsoftonline.com',
         'login.live.com',
         'login.windows.net',
-        'account.live.com',
+        'account.live.com'
       );
     }
 
-    const authUrl = `${BACKEND_URL}/api/auth/${provider}`;
+    const authBaseUrl = await this.resolveAuthEndpoint(provider);
+    const authUrl = `${authBaseUrl}/api/auth/${provider}`;
     logger.info('AUTH', `Starting ${provider} OAuth flow via: ${authUrl}`);
 
     return new Promise((resolve) => {
@@ -441,6 +520,14 @@ class DesktopAuthService {
         },
       });
 
+      const safeClose = () => {
+        try {
+          if (!authWindow.isDestroyed()) {
+            authWindow.close();
+          }
+        } catch {}
+      };
+
       const cleanup = () => {
         if (!resolved) {
           resolved = true;
@@ -450,7 +537,7 @@ class DesktopAuthService {
 
       authWindow.on('closed', cleanup);
 
-      // Security: only allow navigation to the provider's OAuth domains and our backend
+      // Security: only allow navigation to the provider's OAuth domains and our app
       authWindow.webContents.on('will-navigate', (event, url) => {
         try {
           const parsed = new URL(url);
@@ -466,6 +553,97 @@ class DesktopAuthService {
         }
       });
 
+      const finishProviderSuccess = async () => {
+        if (resolved) return;
+        logger.info('AUTH', `${provider} auth_success detected. Extracting session cookies...`);
+
+        try {
+          await authWindow.webContents.session.cookies.flushStore();
+        } catch {}
+
+        for (let attempt = 0; attempt < 25; attempt++) {
+          if (authWindow.isDestroyed() || resolved) return;
+
+          let cookies = await authWindow.webContents.session.cookies.get({ url: APP_URL });
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: BACKEND_URL });
+          }
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: 'https://cloudsync.itsvirendra.in' });
+          }
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: 'https://cloud-sync-woad.vercel.app' });
+          }
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({ url: 'http://localhost:3000' });
+          }
+          if (!cookies || cookies.length === 0) {
+            cookies = await authWindow.webContents.session.cookies.get({});
+          }
+
+          const tokenCookie = cookies.find((c) => c.name === cookieKeys.token);
+          const userCookie = cookies.find((c) => c.name === cookieKeys.user);
+
+          if (tokenCookie && userCookie && !resolved) {
+            resolved = true;
+            try {
+              const user = JSON.parse(decodeURIComponent(userCookie.value));
+              providerTokenCache[provider] = {
+                token: tokenCookie.value,
+                expiresAt: Date.now() + (tokenCookie.expirationDate
+                  ? (tokenCookie.expirationDate * 1000 - Date.now())
+                  : 4 * 60 * 60 * 1000),
+              };
+              providerUserCache[provider] = user;
+
+              const session = ((await this.getSession()) || { sessionToken: 'cookie_session', user }) as StoredSession;
+              if (!session.providers) session.providers = {};
+              session.providers[provider] = {
+                token: tokenCookie.value,
+                expiresAt: providerTokenCache[provider].expiresAt,
+                user,
+              };
+              await this.saveSession(session);
+
+              logger.info('AUTH', `${provider} session cached & saved for: ${user.email}`);
+
+              safeClose();
+
+              const win = getMainWindow();
+              if (win && !win.isDestroyed()) {
+                win.webContents.send('desktop:providerAuthChanged', { provider, user });
+              }
+
+              resolve(true);
+              return;
+            } catch (err) {
+              logger.error('AUTH', `Failed to parse ${provider} user cookie`, err);
+            }
+          }
+
+          await new Promise((r) => setTimeout(r, 200));
+        }
+
+        if (!resolved) {
+          logger.warn('AUTH', `${provider} auth_success but cookies not found in time`);
+          safeClose();
+          resolve(false);
+        }
+      };
+
+      // Listen for cookie changes
+      const cookieListener = (_event: any, cookie: any) => {
+        if (cookie.name === cookieKeys.token || cookie.name === cookieKeys.user) {
+          finishProviderSuccess();
+        }
+      };
+      authWindow.webContents.session.cookies.on('changed', cookieListener);
+      authWindow.on('closed', () => {
+        try {
+          authWindow.webContents.session.cookies.removeListener('changed', cookieListener);
+        } catch {}
+      });
+
       const handleUrl = async (url: string) => {
         if (resolved) return;
 
@@ -475,74 +653,45 @@ class DesktopAuthService {
           if (parsed.searchParams.has('auth_error')) {
             const errCode = parsed.searchParams.get('auth_error');
             logger.error('AUTH', `${provider} OAuth failed: ${errCode}`);
-            resolved = true;
-            try { authWindow.close(); } catch {}
-            resolve(false);
+            safeClose();
+            cleanup();
             return;
           }
 
           if (
-            parsed.searchParams.has('auth_success') &&
-            (parsed.searchParams.get('provider') === provider || !parsed.searchParams.get('provider'))
+            (parsed.searchParams.has('auth_success') &&
+              (parsed.searchParams.get('provider') === provider || !parsed.searchParams.get('provider'))) ||
+            (url.includes('auth_success') && url.includes(provider))
           ) {
-            resolved = true;
-            logger.info('AUTH', `${provider} auth_success received. Extracting session cookies...`);
-
-            // Poll for cookies — give the browser time to set them
-            for (let attempt = 0; attempt < 15; attempt++) {
-              let cookies = await authWindow.webContents.session.cookies.get({ url: BACKEND_URL });
-              if (!cookies || cookies.length === 0) {
-                cookies = await authWindow.webContents.session.cookies.get({});
-              }
-
-              const tokenCookie = cookies.find((c) => c.name === cookieKeys.token);
-              const userCookie = cookies.find((c) => c.name === cookieKeys.user);
-
-              if (tokenCookie && userCookie) {
-                const user = JSON.parse(decodeURIComponent(userCookie.value));
-
-                // Cache in memory
-                providerTokenCache[provider] = {
-                  token: tokenCookie.value,
-                  expiresAt: Date.now() + (tokenCookie.expirationDate
-                    ? (tokenCookie.expirationDate * 1000 - Date.now())
-                    : 4 * 60 * 60 * 1000), // default 4h
-                };
-                providerUserCache[provider] = user;
-
-                logger.info('AUTH', `${provider} session cached in memory for: ${user.email}`);
-
-                try { authWindow.close(); } catch {}
-
-                const win = getMainWindow();
-                if (win && !win.isDestroyed()) {
-                  win.webContents.send('desktop:providerAuthChanged', { provider, user });
-                }
-
-                resolve(true);
-                return;
-              }
-
-              await new Promise((r) => setTimeout(r, 300));
-            }
-
-            logger.warn('AUTH', `${provider} auth_success but cookies not found in time`);
-            try { authWindow.close(); } catch {}
-            resolve(false);
+            finishProviderSuccess();
           }
         } catch (err) {
-          logger.error('AUTH', `Error processing ${provider} OAuth callback URL`, err);
+          logger.error('AUTH', `Error processing ${provider} OAuth URL`, err);
         }
       };
 
       authWindow.webContents.on('will-redirect', (_event, url) => handleUrl(url));
       authWindow.webContents.on('did-navigate', (_event, url) => handleUrl(url));
+      authWindow.webContents.on('did-navigate-in-page', (_event, url) => handleUrl(url));
 
       authWindow.loadURL(authUrl).catch((err) => {
         logger.error('AUTH', `Failed to load ${provider} OAuth URL`, err);
+        safeClose();
         cleanup();
       });
     });
+  }
+
+  /**
+   * Returns current connection states across all providers.
+   */
+  public async getProviderStates(): Promise<Record<string, { connected: boolean; user: DesktopUser | null }>> {
+    await this.getSession();
+    return {
+      google: { connected: Boolean(this.memorySession?.user), user: this.memorySession?.user || null },
+      dropbox: { connected: Boolean(providerTokenCache.dropbox), user: providerUserCache.dropbox || null },
+      onedrive: { connected: Boolean(providerTokenCache.onedrive), user: providerUserCache.onedrive || null },
+    };
   }
 
   /**
@@ -552,6 +701,7 @@ class DesktopAuthService {
   public async getProviderAccessToken(provider: CloudProvider): Promise<string | null> {
     if (provider === 'google') return this.getAccessToken();
 
+    await this.getSession();
     const cached = providerTokenCache[provider];
     if (cached && Date.now() < cached.expiresAt - 120000) {
       return cached.token;
@@ -562,16 +712,17 @@ class DesktopAuthService {
   /**
    * Returns the cached user info for a cloud provider.
    */
-  public getProviderUser(provider: CloudProvider): { email: string; name: string; picture: string } | null {
+  public async getProviderUser(provider: CloudProvider): Promise<{ email: string; name: string; picture: string } | null> {
     if (provider === 'google') {
-      const s = this.memorySession;
+      const s = await this.getSession();
       return s ? s.user : null;
     }
+    await this.getSession();
     return providerUserCache[provider] || null;
   }
 
   /**
-   * Disconnects a cloud provider (clears its in-memory cache).
+   * Disconnects a cloud provider (clears its in-memory and persistent cache).
    * For Google, delegates to logout().
    */
   public async disconnectProvider(provider: CloudProvider): Promise<void> {
@@ -581,6 +732,11 @@ class DesktopAuthService {
     }
     delete providerTokenCache[provider];
     delete providerUserCache[provider];
+
+    if (this.memorySession?.providers) {
+      delete this.memorySession.providers[provider];
+      await this.saveSession(this.memorySession);
+    }
 
     const win = getMainWindow();
     if (win && !win.isDestroyed()) {

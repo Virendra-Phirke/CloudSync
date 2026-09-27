@@ -1,6 +1,7 @@
 import type {NextConfig} from 'next';
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  // Use standalone output for desktop packaging, but disable on Vercel to avoid missing nft.json errors
+  output: process.env.VERCEL ? undefined : 'standalone',
   reactStrictMode: true,
   typescript: {
     ignoreBuildErrors: true,

@@ -77,13 +77,20 @@ export function isAuthenticated(): boolean {
 
 /**
  * Initiates the Google OAuth flow.
- * On desktop: Opens isolated auth window; IPC push event updates UI when done.
+ * On desktop: Opens isolated auth window, dispatches desktop:providerConnected on success.
  * On web: Navigates to /api/auth/google.
  */
 export function initiateOAuth(): void {
   if (isDesktop() && window.cloudSyncDesktop?.auth) {
-    window.cloudSyncDesktop.auth.login();
-    // No reload needed — desktop:authChanged IPC event triggers all initAuth listeners
+    window.cloudSyncDesktop.auth.login().then((success) => {
+      if (success) {
+        // Dispatch the same event AccountsView listens for — reliable UI refresh
+        window.dispatchEvent(new CustomEvent('desktop:providerConnected', { detail: { provider: 'google' } }));
+      } else {
+        // Login cancelled or failed — clear the connecting spinner
+        window.dispatchEvent(new CustomEvent('desktop:providerConnectFailed', { detail: { provider: 'google' } }));
+      }
+    });
     return;
   }
   window.location.href = '/api/auth/google';
@@ -310,8 +317,10 @@ export function initiateProviderOAuth(provider: CloudProviderType): void {
     window.cloudSyncDesktop.auth.loginWithProvider(provider).then((success) => {
       if (success) {
         markDesktopProviderAuthenticated(provider, true);
-        // Notify the app that a provider connected (triggers state refresh)
         window.dispatchEvent(new CustomEvent('desktop:providerConnected', { detail: { provider } }));
+      } else {
+        // Login cancelled or failed — clear spinner
+        window.dispatchEvent(new CustomEvent('desktop:providerConnectFailed', { detail: { provider } }));
       }
     });
     return;
@@ -353,7 +362,31 @@ export async function fetchCloudConnections(): Promise<Array<{
   connected: boolean;
   user?: OAuthUser;
 }>> {
-  // Desktop: skip the network fetch — use local in-memory state
+  // Desktop: use IPC getProviderStates — single authoritative source from main process
+  if (isDesktop() && window.cloudSyncDesktop?.auth?.getProviderStates) {
+    try {
+      const states = await window.cloudSyncDesktop.auth.getProviderStates();
+      // Sync client-side caches with the returned state
+      for (const [p, s] of Object.entries(states)) {
+        if (p !== 'google') {
+          markDesktopProviderAuthenticated(p, s.connected, s.user as OAuthUser);
+        } else if (s.user) {
+          desktopUserCache = s.user as OAuthUser;
+        } else {
+          desktopUserCache = null;
+        }
+      }
+      return [
+        { provider: 'google', name: 'Google Drive', connected: states.google?.connected ?? false, user: states.google?.user || undefined },
+        { provider: 'dropbox', name: 'Dropbox', connected: states.dropbox?.connected ?? false, user: states.dropbox?.user || undefined },
+        { provider: 'onedrive', name: 'Microsoft OneDrive', connected: states.onedrive?.connected ?? false, user: states.onedrive?.user || undefined },
+      ];
+    } catch (err) {
+      console.error('fetchCloudConnections: getProviderStates failed', err);
+    }
+  }
+
+  // Web: fetch from backend API
   if (!isDesktop()) {
     try {
       const res = await fetch('/api/auth/connections');
@@ -364,10 +397,10 @@ export async function fetchCloudConnections(): Promise<Array<{
     } catch {}
   }
 
+  // Fallback: read from client-side caches
   return [
     { provider: 'google', name: 'Google Drive', connected: isAuthenticated(), user: getUserInfo() || undefined },
     { provider: 'dropbox', name: 'Dropbox', connected: isProviderAuthenticated('dropbox'), user: getProviderUserInfo('dropbox') || undefined },
     { provider: 'onedrive', name: 'Microsoft OneDrive', connected: isProviderAuthenticated('onedrive'), user: getProviderUserInfo('onedrive') || undefined },
   ];
 }
-

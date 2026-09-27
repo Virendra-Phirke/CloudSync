@@ -3,6 +3,7 @@ import path from 'path';
 import { getIconPath } from '../utils/paths';
 import { logger } from '../utils/logger';
 import { resolveAppUrl } from '../services/serverService';
+import { setAppUrl } from '../services/authService';
 import { memoryManager } from '../services/memoryManager';
 
 let mainWindow: BrowserWindow | null = null;
@@ -61,6 +62,7 @@ export async function createMainWindow(): Promise<BrowserWindow> {
   });
 
   const appUrl = await resolveAppUrl();
+  setAppUrl(appUrl);
   logger.info('IPC', `Loading CloudSync UI from: ${appUrl}`);
   mainWindow.loadURL(appUrl);
 

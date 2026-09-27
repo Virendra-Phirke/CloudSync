@@ -106,13 +106,21 @@ async function start() {
   // 4. Launch Electron
   console.log('\nLaunching CloudSync Desktop Window...');
   const electronBinary = path.resolve(ELECTRON_DIR, 'node_modules/.bin/electron' + (process.platform === 'win32' ? '.cmd' : ''));
-  
-  electronProcess = spawn(electronBinary, ['.'], {
+
+  // On Windows, spawn with shell:true and quoted paths to handle spaces in directory names.
+  const spawnArgs = process.platform === 'win32'
+    ? [`"${electronBinary}" "${ELECTRON_DIR}"`]
+    : [electronBinary, ELECTRON_DIR];
+  const spawnOpts = {
     cwd: ELECTRON_DIR,
     stdio: 'inherit',
-    shell: true,
     env: { ...process.env, DESKTOP_DEV_URL: DEV_URL },
-  });
+    shell: process.platform === 'win32',
+  };
+
+  electronProcess = process.platform === 'win32'
+    ? spawn(spawnArgs[0], [], spawnOpts)
+    : spawn(spawnArgs[0], [spawnArgs[1]], spawnOpts);
 
   electronProcess.on('close', (code) => {
     console.log(`CloudSync Electron exited with code ${code}`);

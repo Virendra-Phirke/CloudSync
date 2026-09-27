@@ -12,6 +12,7 @@ declare global {
         getSession: () => Promise<{ email: string; name: string; picture: string } | null>;
         getAccessToken: () => Promise<string | null>;
         getProviderAccessToken: (provider: string) => Promise<string | null>;
+        getProviderStates: () => Promise<Record<string, { connected: boolean; user: { email: string; name: string; picture: string } | null }>>;
         disconnectProvider: (provider: string) => Promise<void>;
       };
       startup?: {

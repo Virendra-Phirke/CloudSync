@@ -983,11 +983,18 @@ export const FilesView = React.memo(function FilesView() {
     try {
       for (const file of filesToDelete) {
         if (file.driveId) {
-          if (selectedCloudProvider === 'google') {
-            await deleteDriveFile(file.driveId);
-          } else {
-            const provider = getProvider(selectedCloudProvider);
-            await provider.deleteFile(file.driveId);
+          try {
+            if (selectedCloudProvider === 'google') {
+              await deleteDriveFile(file.driveId);
+            } else {
+              const provider = getProvider(selectedCloudProvider);
+              await provider.deleteFile(file.driveId);
+            }
+          } catch (fileErr: any) {
+            // If already deleted on cloud (404/not found), proceed with local cleanup
+            if (!fileErr?.message?.includes('not found') && !fileErr?.message?.includes('404')) {
+              throw fileErr;
+            }
           }
           await removeSyncState(file.path);
         }

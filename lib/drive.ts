@@ -365,7 +365,8 @@ export async function deleteDriveFile(fileId: string): Promise<void> {
     },
   });
 
-  if (!response.ok) {
+  // If the file is already deleted on Google Drive (404), treat as successful deletion
+  if (!response.ok && response.status !== 404) {
     let errMsg = 'Failed to delete file';
     try {
       const err = await response.json();

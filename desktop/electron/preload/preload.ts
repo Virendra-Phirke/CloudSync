@@ -16,6 +16,7 @@ const api: CloudSyncDesktopAPI = {
     getSession: () => ipcRenderer.invoke('desktop:auth:getSession'),
     getAccessToken: () => ipcRenderer.invoke('desktop:auth:getAccessToken'),
     getProviderAccessToken: (provider: string) => ipcRenderer.invoke('desktop:auth:getProviderAccessToken', { provider }),
+    getProviderStates: () => ipcRenderer.invoke('desktop:auth:getProviderStates'),
     disconnectProvider: (provider: string) => ipcRenderer.invoke('desktop:auth:disconnectProvider', { provider }),
   },
 

@@ -79,6 +79,7 @@ export interface CloudSyncDesktopAPI {
     getSession: () => Promise<DesktopUser | null>;
     getAccessToken: () => Promise<string | null>;
     getProviderAccessToken: (provider: string) => Promise<string | null>;
+    getProviderStates: () => Promise<Record<string, { connected: boolean; user: DesktopUser | null }>>;
     disconnectProvider: (provider: string) => Promise<void>;
   };
   selectFolder: () => Promise<DesktopFolderSelection | null>;

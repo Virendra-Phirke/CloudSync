@@ -42,6 +42,10 @@ export function registerIpcHandlers() {
     return await authService.disconnectProvider(provider as any);
   });
 
+  ipcMain.handle('desktop:auth:getProviderStates', async () => {
+    return await authService.getProviderStates();
+  });
+
   ipcMain.handle('desktop:selectFolder', async () => {
     try {
       return await filesystemService.selectFolder();
