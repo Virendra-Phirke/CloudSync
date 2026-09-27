@@ -131,7 +131,46 @@ test('DropboxProvider - uploadFile handles small upload with Dropbox-API-Arg', a
 
     const apiArg = JSON.parse(requestHeaders['Dropbox-API-Arg']);
     assert.strictEqual(apiArg.path, '/notes.txt');
-    assert.strictEqual(apiArg.mode, 'overwrite');
+    assert.deepStrictEqual(apiArg.mode, { '.tag': 'overwrite' });
+  } finally {
+    global.fetch = originalFetch;
+    delete (global as any).document;
+  }
+});
+
+test('DropboxProvider - uploadFile escapes non-ASCII characters in Dropbox-API-Arg and handles errors', async () => {
+  const provider = new DropboxProvider();
+  const originalFetch = global.fetch;
+  let sentHeader = '';
+
+  (global as any).document = {
+    cookie: 'dbx_access_token=mock_dbx_token',
+  };
+
+  global.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = init?.headers as Record<string, string>;
+    sentHeader = headers['Dropbox-API-Arg'];
+    return new Response(
+      JSON.stringify({
+        '.tag': 'file',
+        id: 'id:uploaded_unicode',
+        name: 'dokument_résumé.txt',
+        path_display: '/dokument_résumé.txt',
+        size: 20,
+        server_modified: '2026-01-01T12:00:00Z',
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
+  };
+
+  try {
+    const file = new Blob(['unicode test'], { type: 'text/plain' });
+    const uploaded = await provider.uploadFile(file, 'root', 'dokument_résumé.txt');
+
+    assert.strictEqual(uploaded.name, 'dokument_résumé.txt');
+    // Ensure all non-ASCII characters in header are escaped to \uXXXX
+    assert.ok(!/[^\x00-\x7F]/.test(sentHeader), 'Dropbox-API-Arg header must only contain ASCII characters');
+    assert.ok(sentHeader.includes('\\u00e9'), 'Header should contain unicode escape for accented e');
   } finally {
     global.fetch = originalFetch;
     delete (global as any).document;

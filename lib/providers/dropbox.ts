@@ -20,6 +20,16 @@ const CHUNK_SIZE = 4 * 1024 * 1024;
 // Threshold above which chunked session upload is used
 const CHUNK_UPLOAD_THRESHOLD = 8 * 1024 * 1024;
 
+/**
+ * Dropbox API requires all non-ASCII characters in Dropbox-API-Arg to be escaped as \uXXXX
+ * to be safe for HTTP headers.
+ */
+export function httpHeaderSafeJson(args: Record<string, unknown>): string {
+  return JSON.stringify(args).replace(/[\u007f-\uffff]/g, (c) => {
+    return '\\u' + ('000' + c.charCodeAt(0).toString(16)).slice(-4);
+  });
+}
+
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
@@ -36,8 +46,122 @@ export class DropboxProvider implements CloudProvider {
     if (trimmed === '' || trimmed === '/' || trimmed === 'root' || trimmed === '/root') {
       return '';
     }
+    if (trimmed.startsWith('id:')) {
+      return trimmed;
+    }
     const cleaned = trimmed.replace(/\/+$/, '');
     return cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+  }
+
+  /**
+   * Resolves a folder path or ID into a canonical Dropbox folder path (e.g. '/folder' or '').
+   * If an 'id:...' is provided, retrieves metadata to obtain its canonical display path.
+   */
+  private async resolveDropboxFolderPath(parentIdOrPath = ''): Promise<string> {
+    const trimmed = parentIdOrPath ? parentIdOrPath.trim() : '';
+    if (!trimmed || trimmed === '/' || trimmed === 'root' || trimmed === '/root') {
+      return '';
+    }
+    if (trimmed.startsWith('id:')) {
+      try {
+        const meta = await this.getMetadata(trimmed);
+        if (meta && meta.path) {
+          return meta.path === '/' ? '' : meta.path;
+        }
+      } catch {
+        return '';
+      }
+    }
+    const clean = normalizeCloudPath(trimmed);
+    return clean === '/' || clean === '/root' ? '' : clean;
+  }
+
+  /**
+   * Builds a safe destination file path for Dropbox uploads.
+   * Strips forbidden characters and trailing dots/spaces that Dropbox rejects.
+   */
+  private async resolveDropboxFilePath(parentIdOrPath = '', fileName: string): Promise<string> {
+    let safeName = (fileName || 'uploaded_file')
+      .replace(/[\\/:\*\?"<>\|]/g, '_')
+      .trim()
+      .replace(/\.+$/, '');
+    if (!safeName) safeName = 'file';
+
+    const parentFolder = await this.resolveDropboxFolderPath(parentIdOrPath);
+    const combined = `${parentFolder}/${safeName}`.replace(/\/+/g, '/');
+    return combined.startsWith('/') ? combined : `/${combined}`;
+  }
+
+  /**
+   * Parses Dropbox error responses, drilling into nested Stone error objects
+   * and providing human-readable explanations instead of raw 'other/...'.
+   */
+  private async parseDropboxError(res: Response, fallbackAction = 'perform Dropbox operation'): Promise<ProviderError> {
+    let errSummary = '';
+    let userMsg = '';
+    let errorTag = '';
+    try {
+      const text = await res.text();
+      try {
+        const parsed = JSON.parse(text);
+        errSummary = parsed.error_summary || '';
+        userMsg = parsed.user_message?.text || parsed.user_message || '';
+        errorTag = parsed.error?.['.tag'] || '';
+
+        // Drill down into nested error objects (e.g. UploadWriteFailed, WriteError)
+        if (!userMsg && parsed.error) {
+          const nested = parsed.error.path || parsed.error.reason || parsed.error;
+          const nestedTag = nested?.['.tag'] || errorTag;
+          if (nestedTag === 'insufficient_space') {
+            userMsg = 'Dropbox storage quota exceeded. Please free up space in your Dropbox account.';
+          } else if (nestedTag === 'conflict') {
+            userMsg = 'A file or folder with the same name already exists in Dropbox.';
+          } else if (nestedTag === 'no_write_permission') {
+            userMsg = 'Write permission denied for this folder in Dropbox.';
+          } else if (nestedTag === 'malformed_path') {
+            userMsg = 'The Dropbox path is invalid or contains forbidden characters.';
+          } else if (nestedTag === 'disallowed_name') {
+            userMsg = 'Dropbox does not allow this file name.';
+          } else if (nestedTag === 'too_many_write_operations') {
+            userMsg = 'Too many write operations. Please wait a few seconds and try again.';
+          }
+        }
+      } catch {
+        errSummary = text;
+      }
+    } catch {}
+
+    if (res.status === 401) {
+      if (typeof document !== 'undefined') {
+        document.cookie = 'dbx_access_token=; path=/; max-age=0';
+        document.cookie = 'dbx_user=; path=/; max-age=0';
+      }
+      return new ProviderError('Dropbox session expired. Please reconnect your account.', this.id, 401);
+    }
+
+    if (
+      res.status === 403 ||
+      errSummary.includes('not permitted to access this endpoint') ||
+      errSummary.includes('required scope') ||
+      errSummary.includes('missing_scope')
+    ) {
+      return new ProviderError(
+        `Dropbox permissions missing. Please ensure 'files.metadata.read', 'files.metadata.write', 'files.content.read', 'files.content.write' scopes are enabled in Dropbox App Console (Permissions tab) and reconnect.`,
+        this.id,
+        403
+      );
+    }
+
+    let finalMessage = userMsg;
+    if (!finalMessage) {
+      if (errSummary && errSummary !== 'other/...' && !errSummary.startsWith('other/')) {
+        finalMessage = errSummary;
+      } else {
+        finalMessage = `Failed to ${fallbackAction} (HTTP ${res.status}: ${res.statusText || 'Error'})`;
+      }
+    }
+
+    return new ProviderError(finalMessage, this.id, res.status);
   }
 
   private async refreshToken(): Promise<string | null> {
@@ -309,23 +433,22 @@ export class DropboxProvider implements CloudProvider {
     fileName?: string,
     options: UploadOptions = {}
   ): Promise<CloudItem> {
-    const token = await this.getToken();
+    let token = await this.getToken();
     const resolvedName = fileName || (file instanceof File ? file.name : 'uploaded_file');
-    const folder = parentIdOrPath && parentIdOrPath !== '/' ? normalizeCloudPath(parentIdOrPath) : '';
-    const targetPath = `${folder}/${resolvedName}`.replace(/\/+/g, '/');
-
+    const targetPath = await this.resolveDropboxFilePath(parentIdOrPath, resolvedName);
     const fileSize = file.size;
 
-    // Use small file upload if file size is below threshold
+    // Small file upload (<8MB) via /2/files/upload
     if (fileSize < CHUNK_UPLOAD_THRESHOLD) {
-      const apiArg = JSON.stringify({
+      const isAddMode = options.overwrite === false;
+      const apiArg = httpHeaderSafeJson({
         path: targetPath,
-        mode: 'overwrite',
-        autorename: true,
+        mode: isAddMode ? { '.tag': 'add' } : { '.tag': 'overwrite' },
+        ...(isAddMode ? { autorename: true } : {}),
         mute: false,
       });
 
-      const res = await fetchWithProviderRetry(
+      let res = await fetchWithProviderRetry(
         this.id,
         'https://content.dropboxapi.com/2/files/upload',
         {
@@ -340,9 +463,30 @@ export class DropboxProvider implements CloudProvider {
         }
       );
 
+      // Handle 401 session expiration with automatic token refresh and retry
+      if (res.status === 401) {
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          token = refreshed;
+          res = await fetchWithProviderRetry(
+            this.id,
+            'https://content.dropboxapi.com/2/files/upload',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Dropbox-API-Arg': apiArg,
+                'Content-Type': 'application/octet-stream',
+              },
+              body: file,
+              signal: options.abortSignal,
+            }
+          );
+        }
+      }
+
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new ProviderError(err.error_summary || 'Failed to upload file to Dropbox', this.id, res.status);
+        throw await this.parseDropboxError(res, `upload "${resolvedName}" to Dropbox`);
       }
 
       const data = await res.json();
@@ -359,19 +503,20 @@ export class DropboxProvider implements CloudProvider {
     targetPath: string,
     options: UploadOptions = {}
   ): Promise<CloudItem> {
+    let currentToken = token;
     const totalBytes = file.size;
     let offset = 0;
 
     // 1. Start upload session with first chunk
     const firstChunk = file.slice(0, Math.min(CHUNK_SIZE, totalBytes));
-    const startRes = await fetchWithProviderRetry(
+    let startRes = await fetchWithProviderRetry(
       this.id,
       'https://content.dropboxapi.com/2/files/upload_session/start',
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Dropbox-API-Arg': JSON.stringify({ close: false }),
+          Authorization: `Bearer ${currentToken}`,
+          'Dropbox-API-Arg': httpHeaderSafeJson({ close: false }),
           'Content-Type': 'application/octet-stream',
         },
         body: firstChunk,
@@ -379,8 +524,29 @@ export class DropboxProvider implements CloudProvider {
       }
     );
 
+    if (startRes.status === 401) {
+      const refreshed = await this.refreshToken();
+      if (refreshed) {
+        currentToken = refreshed;
+        startRes = await fetchWithProviderRetry(
+          this.id,
+          'https://content.dropboxapi.com/2/files/upload_session/start',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${currentToken}`,
+              'Dropbox-API-Arg': httpHeaderSafeJson({ close: false }),
+              'Content-Type': 'application/octet-stream',
+            },
+            body: firstChunk,
+            signal: options.abortSignal,
+          }
+        );
+      }
+    }
+
     if (!startRes.ok) {
-      throw new ProviderError('Failed to initiate chunked upload session', this.id, startRes.status);
+      throw await this.parseDropboxError(startRes, 'initiate chunked upload session');
     }
 
     const { session_id } = await startRes.json();
@@ -397,8 +563,8 @@ export class DropboxProvider implements CloudProvider {
         {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${token}`,
-            'Dropbox-API-Arg': JSON.stringify({
+            Authorization: `Bearer ${currentToken}`,
+            'Dropbox-API-Arg': httpHeaderSafeJson({
               cursor: { session_id, offset },
               close: false,
             }),
@@ -410,7 +576,7 @@ export class DropboxProvider implements CloudProvider {
       );
 
       if (!appendRes.ok) {
-        throw new ProviderError(`Failed to append chunk at offset ${offset}`, this.id, appendRes.status);
+        throw await this.parseDropboxError(appendRes, `append chunk at offset ${offset}`);
       }
 
       offset += chunk.size;
@@ -419,19 +585,20 @@ export class DropboxProvider implements CloudProvider {
 
     // 3. Finish session with final chunk
     const finalChunk = file.slice(offset, totalBytes);
+    const isAddMode = options.overwrite === false;
     const finishRes = await fetchWithProviderRetry(
       this.id,
       'https://content.dropboxapi.com/2/files/upload_session/finish',
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
-          'Dropbox-API-Arg': JSON.stringify({
+          Authorization: `Bearer ${currentToken}`,
+          'Dropbox-API-Arg': httpHeaderSafeJson({
             cursor: { session_id, offset },
             commit: {
               path: targetPath,
-              mode: 'overwrite',
-              autorename: true,
+              mode: isAddMode ? { '.tag': 'add' } : { '.tag': 'overwrite' },
+              ...(isAddMode ? { autorename: true } : {}),
               mute: false,
             },
           }),
@@ -443,7 +610,7 @@ export class DropboxProvider implements CloudProvider {
     );
 
     if (!finishRes.ok) {
-      throw new ProviderError('Failed to finish chunked upload session', this.id, finishRes.status);
+      throw await this.parseDropboxError(finishRes, 'finish chunked upload session');
     }
 
     options.onProgress?.(totalBytes, totalBytes);
@@ -452,26 +619,45 @@ export class DropboxProvider implements CloudProvider {
   }
 
   public async downloadFile(fileIdOrPath: string, abortSignal?: AbortSignal): Promise<Blob> {
-    const token = await this.getToken();
+    let token = await this.getToken();
     const cleanPath = fileIdOrPath.startsWith('id:')
       ? fileIdOrPath
       : normalizeCloudPath(fileIdOrPath);
 
-    const res = await fetchWithProviderRetry(
+    let res = await fetchWithProviderRetry(
       this.id,
       'https://content.dropboxapi.com/2/files/download',
       {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
-          'Dropbox-API-Arg': JSON.stringify({ path: cleanPath }),
+          'Dropbox-API-Arg': httpHeaderSafeJson({ path: cleanPath }),
         },
         signal: abortSignal,
       }
     );
 
+    if (res.status === 401) {
+      const refreshed = await this.refreshToken();
+      if (refreshed) {
+        token = refreshed;
+        res = await fetchWithProviderRetry(
+          this.id,
+          'https://content.dropboxapi.com/2/files/download',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Dropbox-API-Arg': httpHeaderSafeJson({ path: cleanPath }),
+            },
+            signal: abortSignal,
+          }
+        );
+      }
+    }
+
     if (!res.ok) {
-      throw new ProviderError('Failed to download file from Dropbox', this.id, res.status);
+      throw await this.parseDropboxError(res, `download file "${fileIdOrPath}" from Dropbox`);
     }
 
     return res.blob();
@@ -486,22 +672,24 @@ export class DropboxProvider implements CloudProvider {
     name: string,
     parentIdOrPath = ''
   ): Promise<{ id: string; name: string; path: string; isNew: boolean }> {
-    const token = await this.getToken();
-    const folder = parentIdOrPath && parentIdOrPath !== '/' ? normalizeCloudPath(parentIdOrPath) : '';
-    const fullPath = `${folder}/${name}`.replace(/\/+/g, '/');
+    let token = await this.getToken();
+    const parentFolder = await this.resolveDropboxFolderPath(parentIdOrPath);
+    let safeName = name.replace(/[\\/:\*\?"<>\|]/g, '_').trim().replace(/\.+$/, '');
+    if (!safeName) safeName = 'folder';
+    const fullPath = `${parentFolder}/${safeName}`.replace(/\/+/g, '/');
 
     // First check if folder already exists
     const existing = await this.getMetadata(fullPath);
     if (existing && existing.isDirectory) {
       return {
-        id: existing.id,
+        id: existing.path || existing.id,
         name: existing.name,
         path: existing.path,
         isNew: false,
       };
     }
 
-    const res = await fetchWithProviderRetry(
+    let res = await fetchWithProviderRetry(
       this.id,
       'https://api.dropboxapi.com/2/files/create_folder_v2',
       {
@@ -517,28 +705,50 @@ export class DropboxProvider implements CloudProvider {
       }
     );
 
+    if (res.status === 401) {
+      const refreshed = await this.refreshToken();
+      if (refreshed) {
+        token = refreshed;
+        res = await fetchWithProviderRetry(
+          this.id,
+          'https://api.dropboxapi.com/2/files/create_folder_v2',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              path: fullPath,
+              autorename: false,
+            }),
+          }
+        );
+      }
+    }
+
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new ProviderError(err.error_summary || 'Failed to create folder in Dropbox', this.id, res.status);
+      throw await this.parseDropboxError(res, `create folder "${name}" in Dropbox`);
     }
 
     const data = await res.json();
     const metadata = data.metadata;
+    const finalPath = metadata.path_display || fullPath;
     return {
-      id: metadata.id,
+      id: finalPath,
       name: metadata.name,
-      path: metadata.path_display || fullPath,
+      path: finalPath,
       isNew: true,
     };
   }
 
   public async deleteFile(fileIdOrPath: string): Promise<void> {
-    const token = await this.getToken();
+    let token = await this.getToken();
     const cleanPath = fileIdOrPath.startsWith('id:')
       ? fileIdOrPath
       : normalizeCloudPath(fileIdOrPath);
 
-    const res = await fetchWithProviderRetry(
+    let res = await fetchWithProviderRetry(
       this.id,
       'https://api.dropboxapi.com/2/files/delete_v2',
       {
@@ -551,9 +761,27 @@ export class DropboxProvider implements CloudProvider {
       }
     );
 
+    if (res.status === 401) {
+      const refreshed = await this.refreshToken();
+      if (refreshed) {
+        token = refreshed;
+        res = await fetchWithProviderRetry(
+          this.id,
+          'https://api.dropboxapi.com/2/files/delete_v2',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ path: cleanPath }),
+          }
+        );
+      }
+    }
+
     if (!res.ok && res.status !== 409 && res.status !== 404) {
-      const err = await res.json().catch(() => ({}));
-      throw new ProviderError(err.error_summary || 'Failed to delete Dropbox file', this.id, res.status);
+      throw await this.parseDropboxError(res, `delete Dropbox file "${fileIdOrPath}"`);
     }
   }
 
@@ -705,7 +933,8 @@ export class DropboxProvider implements CloudProvider {
       : Date.now();
 
     return {
-      id: entry.id || path,
+      // For directories, use canonical path so hierarchical operations (listFiles, createFolder, uploadFile) work seamlessly!
+      id: isDir ? path : (entry.id || path),
       name: entry.name,
       path,
       isDirectory: isDir,

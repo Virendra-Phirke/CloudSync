@@ -650,7 +650,7 @@ export const FilesView = React.memo(function FilesView() {
 
       const provider = getProvider(selectedCloudProvider);
       const folderTarget = selectedCloudProvider === 'dropbox'
-        ? (currentPath ? `/${currentPath}` : '')
+        ? (currentPath.startsWith('/') ? currentPath : (currentPath ? `/${currentPath}` : ''))
         : (currentPath || 'root');
 
       let uploadedCount = 0;
@@ -769,7 +769,7 @@ export const FilesView = React.memo(function FilesView() {
 
       const provider = getProvider(selectedCloudProvider);
       const folderTarget = selectedCloudProvider === 'dropbox'
-        ? (currentPath ? `/${currentPath}` : '')
+        ? (currentPath.startsWith('/') ? currentPath : (currentPath ? `/${currentPath}` : ''))
         : (currentPath || 'root');
 
       let uploadedCount = 0;
