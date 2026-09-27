@@ -2,11 +2,11 @@
 import {
   Folder, HardDrive, Cloud, CheckCircle2, Clock, AlertCircle, UploadCloud,
   File as FileIcon, Download, Loader2, FolderOpen, RefreshCw, Plus, ArrowUpRight,
-  Zap, ShieldCheck, FolderTree, Check, ChevronRight, Layers, ExternalLink,
+  Zap, ShieldCheck, FolderTree, Check, ChevronRight, Layers, ExternalLink, ChevronDown,
 } from 'lucide-react';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
 const StorageChart = dynamic(() => import('./StorageChart').then(mod => mod.StorageChart), { ssr: false });
 const FolderStructureModal = dynamic(() => import('./FolderStructureModal').then(mod => mod.FolderStructureModal), { ssr: false });
@@ -189,7 +189,31 @@ export const Dashboard = React.memo(function Dashboard() {
 
   // Tab view states
   const [selectedStorageTab, setSelectedStorageTab] = useState<'all' | CloudProviderType>('all');
+  const [isStorageDropdownOpen, setIsStorageDropdownOpen] = useState(false);
+  const storageDropdownRef = useRef<HTMLDivElement>(null);
   const [activityProviderFilter, setActivityProviderFilter] = useState<'all' | CloudProviderType>('all');
+
+  // Close storage dropdown on outside click or Escape
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (storageDropdownRef.current && !storageDropdownRef.current.contains(event.target as Node)) {
+        setIsStorageDropdownOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsStorageDropdownOpen(false);
+      }
+    }
+    if (isStorageDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [isStorageDropdownOpen]);
 
   // Multi-folder state
   const [folderEntries, setFolderEntries] = useState<FolderWithStats[]>([]);
@@ -599,17 +623,17 @@ export const Dashboard = React.memo(function Dashboard() {
     ? Math.round((totalCloudUsed / totalCloudCapacity) * 100)
     : 0;
 
-  // Pie chart datasets
+  // Pie chart datasets: In All Clouds view, display the storage distribution among connected cloud providers
   const allCloudsChartData = useMemo(() => {
     const data: Array<{ name: string; value: number; color: string }> = [];
     if (googleUsed > 0) data.push({ name: 'Google Drive', value: googleUsed, color: '#10b981' });
     if (dropboxUsed > 0) data.push({ name: 'Dropbox', value: dropboxUsed, color: '#0061FF' });
     if (onedriveUsed > 0) data.push({ name: 'OneDrive', value: onedriveUsed, color: '#0078D4' });
-    if (totalCloudFree > 0 || data.length === 0) {
-      data.push({ name: 'Free Space', value: totalCloudFree > 0 ? totalCloudFree : 1, color: '#262626' });
+    if (data.length === 0) {
+      data.push({ name: 'Free Space', value: 1, color: '#262626' });
     }
     return data;
-  }, [googleUsed, dropboxUsed, onedriveUsed, totalCloudFree]);
+  }, [googleUsed, dropboxUsed, onedriveUsed]);
 
   const googleChartData = useMemo(() => {
     const g = cloudProviders.google.quota;
@@ -1204,7 +1228,7 @@ export const Dashboard = React.memo(function Dashboard() {
           <motion.div variants={itemVariants} className="md:col-span-12 lg:col-span-6 bento-block flex flex-col justify-between">
             <div>
               {/* Header */}
-              <div className="flex items-center justify-between mb-3.5">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 bg-emerald-500/10 text-emerald-400 rounded-xl">
                     <Cloud size={20} />
@@ -1215,63 +1239,114 @@ export const Dashboard = React.memo(function Dashboard() {
                   </div>
                 </div>
 
-                {/* Cloud Provider Indicator Badges */}
-                <div className="flex items-center gap-1.5">
-                  {(['google', 'dropbox', 'onedrive'] as CloudProviderType[]).map((p) => {
-                    const isConn = cloudProviders[p].connected;
-                    return (
-                      <span
-                        key={p}
-                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium border ${
-                          isConn
-                            ? PROVIDER_METAS[p].badgeCls
-                            : 'bg-secondary/40 text-muted-foreground/60 border-border/40'
-                        }`}
-                        title={`${PROVIDER_METAS[p].name}: ${isConn ? 'Connected' : 'Not Connected'}`}
+                {/* Drive Selector Dropdown */}
+                <div className="relative" ref={storageDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsStorageDropdownOpen(!isStorageDropdownOpen)}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary border border-border/80 text-xs font-medium text-foreground transition-all shadow-sm focus:outline-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
+                    aria-label="Select cloud drive"
+                    aria-expanded={isStorageDropdownOpen}
+                  >
+                    {selectedStorageTab === 'all' ? (
+                      <>
+                        <div className="p-1 rounded-md bg-primary/10 text-primary">
+                          <Layers size={13} />
+                        </div>
+                        <span className="font-semibold">All Clouds</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="p-0.5">
+                          <ProviderLogo provider={selectedStorageTab} size={14} />
+                        </div>
+                        <span className="font-semibold">{PROVIDER_METAS[selectedStorageTab].shortName}</span>
+                        <span className={`w-1.5 h-1.5 rounded-full ${cloudProviders[selectedStorageTab].connected ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
+                      </>
+                    )}
+                    <ChevronDown size={13} className={`text-muted-foreground transition-transform duration-200 ${isStorageDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  <AnimatePresence>
+                    {isStorageDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 4, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-60 rounded-2xl bg-card/95 backdrop-blur-xl border border-border/80 shadow-2xl p-1.5 z-30 space-y-1"
                       >
-                        <ProviderLogo provider={p} size={12} />
-                        <span className="hidden sm:inline text-[11px]">{PROVIDER_METAS[p].shortName}</span>
-                        <span className={`w-1.5 h-1.5 rounded-full ${isConn ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
-                      </span>
-                    );
-                  })}
+                        <div className="px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          Select Drive View
+                        </div>
+
+                        {/* Option 1: All Clouds */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedStorageTab('all');
+                            setIsStorageDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-medium transition-all text-left ${
+                            selectedStorageTab === 'all'
+                              ? 'bg-primary/10 text-primary font-semibold'
+                              : 'text-foreground hover:bg-secondary/80'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-1.5 rounded-lg bg-primary/10 text-primary shrink-0">
+                              <Layers size={14} />
+                            </div>
+                            <div>
+                              <p className="font-semibold text-foreground text-xs leading-none">All Clouds</p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5">Multi-cloud pool overview</p>
+                            </div>
+                          </div>
+                          {selectedStorageTab === 'all' && <Check size={14} className="text-primary shrink-0" />}
+                        </button>
+
+                        <div className="border-t border-border/50 my-1" />
+
+                        {/* Options 2-4: Individual Providers */}
+                        {(['google', 'dropbox', 'onedrive'] as CloudProviderType[]).map((prov) => {
+                          const meta = PROVIDER_METAS[prov];
+                          const isConn = cloudProviders[prov].connected;
+                          const isSelected = selectedStorageTab === prov;
+                          return (
+                            <button
+                              key={prov}
+                              type="button"
+                              onClick={() => {
+                                setSelectedStorageTab(prov);
+                                setIsStorageDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-medium transition-all text-left ${
+                                isSelected
+                                  ? 'bg-secondary text-foreground font-semibold'
+                                  : 'text-foreground hover:bg-secondary/70'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="p-1.5 rounded-lg bg-secondary/80 shrink-0">
+                                  <ProviderLogo provider={prov} size={14} />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-foreground text-xs truncate leading-none">{meta.name}</p>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isConn ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
+                                    {isConn ? 'Connected' : 'Not linked'}
+                                  </p>
+                                </div>
+                              </div>
+                              {isSelected && <Check size={14} className="text-primary shrink-0 ml-2" />}
+                            </button>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-              </div>
-
-              {/* Provider Selection Tabs */}
-              <div className="flex items-center gap-1 p-1 bg-secondary/50 rounded-xl mb-4 border border-border/50 text-xs overflow-x-auto">
-                <button
-                  onClick={() => setSelectedStorageTab('all')}
-                  className={`flex-1 min-w-[70px] py-1.5 px-2 rounded-lg font-medium transition-all text-center flex items-center justify-center gap-1.5 ${
-                    selectedStorageTab === 'all'
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <Layers size={13} />
-                  <span>All Clouds</span>
-                </button>
-
-                {(['google', 'dropbox', 'onedrive'] as CloudProviderType[]).map((prov) => {
-                  const meta = PROVIDER_METAS[prov];
-                  const isConn = cloudProviders[prov].connected;
-                  const isActive = selectedStorageTab === prov;
-                  return (
-                    <button
-                      key={prov}
-                      onClick={() => setSelectedStorageTab(prov)}
-                      className={`flex-1 min-w-[75px] py-1.5 px-2 rounded-lg font-medium transition-all text-center flex items-center justify-center gap-1.5 ${
-                        isActive
-                          ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <ProviderLogo provider={prov} size={13} />
-                      <span className="truncate">{meta.shortName}</span>
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isConn ? 'bg-emerald-400' : 'bg-neutral-600'}`} />
-                    </button>
-                  );
-                })}
               </div>
 
               {/* Tab Content */}
@@ -1304,17 +1379,26 @@ export const Dashboard = React.memo(function Dashboard() {
                       <>
                         <div
                           className="h-full bg-emerald-500 transition-all duration-700"
-                          style={{ width: `${(googleUsed / totalCloudCapacity) * 100}%` }}
+                          style={{
+                            width: `${(googleUsed / totalCloudCapacity) * 100}%`,
+                            minWidth: googleUsed > 0 ? '6px' : '0px',
+                          }}
                           title={`Google Drive: ${formatBytes(googleUsed)}`}
                         />
                         <div
                           className="h-full bg-[#0061FF] transition-all duration-700"
-                          style={{ width: `${(dropboxUsed / totalCloudCapacity) * 100}%` }}
+                          style={{
+                            width: `${(dropboxUsed / totalCloudCapacity) * 100}%`,
+                            minWidth: dropboxUsed > 0 ? '6px' : '0px',
+                          }}
                           title={`Dropbox: ${formatBytes(dropboxUsed)}`}
                         />
                         <div
                           className="h-full bg-[#0078D4] transition-all duration-700"
-                          style={{ width: `${(onedriveUsed / totalCloudCapacity) * 100}%` }}
+                          style={{
+                            width: `${(onedriveUsed / totalCloudCapacity) * 100}%`,
+                            minWidth: onedriveUsed > 0 ? '6px' : '0px',
+                          }}
                           title={`OneDrive: ${formatBytes(onedriveUsed)}`}
                         />
                       </>
@@ -1327,70 +1411,103 @@ export const Dashboard = React.memo(function Dashboard() {
                   <div className="flex items-center justify-between gap-4 pt-1">
                     <div className="grid grid-cols-1 gap-2 flex-1 text-xs">
                       {/* Google Drive Row */}
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40 hover:border-emerald-500/30 transition-colors">
+                      <div
+                        onClick={() => setSelectedStorageTab('google')}
+                        className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40 hover:border-emerald-500/40 hover:bg-secondary/60 transition-all cursor-pointer group"
+                        title="Click to view Google Drive storage breakdown"
+                      >
                         <div className="flex items-center gap-2">
                           <GoogleDriveIcon size={14} />
-                          <span className="font-medium text-foreground">Google Drive</span>
+                          <span className="font-medium text-foreground group-hover:text-emerald-400 transition-colors">Google Drive</span>
                         </div>
                         {cloudProviders.google.connected ? (
-                          <span className="font-semibold text-foreground">
-                            {formatBytes(googleUsed)}
-                            <span className="text-[11px] text-muted-foreground font-normal ml-1">
-                              / {formatBytes(cloudProviders.google.quota?.totalBytes || 0)}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-foreground">
+                              {formatBytes(googleUsed)}
+                              <span className="text-[11px] text-muted-foreground font-normal ml-1">
+                                / {formatBytes(cloudProviders.google.quota?.totalBytes || 0)}
+                              </span>
                             </span>
-                          </span>
+                            <ChevronRight size={12} className="text-muted-foreground/60 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
                         ) : (
                           <button
-                            onClick={() => handleConnectProvider('google')}
-                            className="text-[11px] text-emerald-400 hover:underline font-medium"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConnectProvider('google');
+                            }}
+                            className="text-[11px] text-emerald-400 hover:underline font-medium flex items-center gap-1"
                           >
-                            Connect
+                            <span>Connect</span>
+                            <ArrowUpRight size={11} />
                           </button>
                         )}
                       </div>
 
                       {/* Dropbox Row */}
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40 hover:border-blue-500/30 transition-colors">
+                      <div
+                        onClick={() => setSelectedStorageTab('dropbox')}
+                        className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40 hover:border-blue-500/40 hover:bg-secondary/60 transition-all cursor-pointer group"
+                        title="Click to view Dropbox storage breakdown"
+                      >
                         <div className="flex items-center gap-2">
                           <DropboxIcon size={14} />
-                          <span className="font-medium text-foreground">Dropbox</span>
+                          <span className="font-medium text-foreground group-hover:text-blue-400 transition-colors">Dropbox</span>
                         </div>
                         {cloudProviders.dropbox.connected ? (
-                          <span className="font-semibold text-foreground">
-                            {formatBytes(dropboxUsed)}
-                            <span className="text-[11px] text-muted-foreground font-normal ml-1">
-                              / {formatBytes(cloudProviders.dropbox.quota?.totalBytes || 0)}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-foreground">
+                              {formatBytes(dropboxUsed)}
+                              <span className="text-[11px] text-muted-foreground font-normal ml-1">
+                                / {formatBytes(cloudProviders.dropbox.quota?.totalBytes || 0)}
+                              </span>
                             </span>
-                          </span>
+                            <ChevronRight size={12} className="text-muted-foreground/60 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
                         ) : (
                           <button
-                            onClick={() => handleConnectProvider('dropbox')}
-                            className="text-[11px] text-blue-400 hover:underline font-medium"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConnectProvider('dropbox');
+                            }}
+                            className="text-[11px] text-blue-400 hover:underline font-medium flex items-center gap-1"
                           >
-                            Connect
+                            <span>Connect</span>
+                            <ArrowUpRight size={11} />
                           </button>
                         )}
                       </div>
 
                       {/* OneDrive Row */}
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40 hover:border-sky-500/30 transition-colors">
+                      <div
+                        onClick={() => setSelectedStorageTab('onedrive')}
+                        className="flex items-center justify-between p-2 rounded-lg bg-secondary/40 border border-border/40 hover:border-sky-500/40 hover:bg-secondary/60 transition-all cursor-pointer group"
+                        title="Click to view OneDrive storage breakdown"
+                      >
                         <div className="flex items-center gap-2">
                           <OneDriveIcon size={14} />
-                          <span className="font-medium text-foreground">Microsoft OneDrive</span>
+                          <span className="font-medium text-foreground group-hover:text-sky-400 transition-colors">Microsoft OneDrive</span>
                         </div>
                         {cloudProviders.onedrive.connected ? (
-                          <span className="font-semibold text-foreground">
-                            {formatBytes(onedriveUsed)}
-                            <span className="text-[11px] text-muted-foreground font-normal ml-1">
-                              / {formatBytes(cloudProviders.onedrive.quota?.totalBytes || 0)}
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-semibold text-foreground">
+                              {formatBytes(onedriveUsed)}
+                              <span className="text-[11px] text-muted-foreground font-normal ml-1">
+                                / {formatBytes(cloudProviders.onedrive.quota?.totalBytes || 0)}
+                              </span>
                             </span>
-                          </span>
+                            <ChevronRight size={12} className="text-muted-foreground/60 group-hover:text-sky-400 group-hover:translate-x-0.5 transition-transform" />
+                          </div>
                         ) : (
                           <button
-                            onClick={() => handleConnectProvider('onedrive')}
-                            className="text-[11px] text-sky-400 hover:underline font-medium"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleConnectProvider('onedrive');
+                            }}
+                            className="text-[11px] text-sky-400 hover:underline font-medium flex items-center gap-1"
                           >
-                            Connect
+                            <span>Connect</span>
+                            <ArrowUpRight size={11} />
                           </button>
                         )}
                       </div>
