@@ -77,16 +77,13 @@ export function isAuthenticated(): boolean {
 
 /**
  * Initiates the Google OAuth flow.
- * On desktop: Opens isolated PKCE auth window against Vercel backend.
+ * On desktop: Opens isolated auth window; IPC push event updates UI when done.
  * On web: Navigates to /api/auth/google.
  */
 export function initiateOAuth(): void {
   if (isDesktop() && window.cloudSyncDesktop?.auth) {
-    window.cloudSyncDesktop.auth.login().then((success) => {
-      if (success) {
-        window.location.reload();
-      }
-    });
+    window.cloudSyncDesktop.auth.login();
+    // No reload needed — desktop:authChanged IPC event triggers all initAuth listeners
     return;
   }
   window.location.href = '/api/auth/google';
@@ -94,14 +91,14 @@ export function initiateOAuth(): void {
 
 /**
  * Logs out:
- * On desktop: Clears DPAPI safeStorage session and memory cache.
+ * On desktop: Clears DPAPI safeStorage session and memory cache; IPC push notifies UI.
  * On web: Clears all OAuth cookies via /api/auth/logout.
  */
 export async function logout(): Promise<void> {
   if (isDesktop() && window.cloudSyncDesktop?.auth) {
     await window.cloudSyncDesktop.auth.logout();
     desktopUserCache = null;
-    window.location.reload();
+    // No reload needed — desktop:authChanged IPC event (user: null) triggers initAuth onFailure
     return;
   }
   await fetch('/api/auth/logout', { method: 'POST' });
@@ -154,9 +151,19 @@ export function initAuth(
       }
     });
 
+    // Also listen for provider auth changes (Dropbox, OneDrive)
+    const unsubProvider = window.cloudSyncDesktop?.onProviderAuthChanged?.((payload) => {
+      if (payload.user) {
+        markDesktopProviderAuthenticated(payload.provider, true, payload.user as OAuthUser);
+      } else {
+        markDesktopProviderAuthenticated(payload.provider, false);
+      }
+    });
+
     return () => {
       active = false;
       unsub?.();
+      unsubProvider?.();
     };
   }
 
@@ -226,6 +233,11 @@ export type CloudProviderType = 'google' | 'dropbox' | 'onedrive';
 export async function getProviderAccessToken(provider: CloudProviderType): Promise<string | null> {
   if (provider === 'google') return getAccessToken();
 
+  // Desktop: use the IPC bridge which returns the in-memory cached token
+  if (isDesktop() && window.cloudSyncDesktop?.auth?.getProviderAccessToken) {
+    return await window.cloudSyncDesktop.auth.getProviderAccessToken(provider);
+  }
+
   const cookieName = provider === 'dropbox' ? 'dbx_access_token' : 'one_access_token';
   const token = getCookie(cookieName);
   if (token) return token;
@@ -245,6 +257,12 @@ export async function getProviderAccessToken(provider: CloudProviderType): Promi
 export function getProviderUserInfo(provider: CloudProviderType): OAuthUser | null {
   if (provider === 'google') return getUserInfo();
 
+  // Desktop: return from in-memory cache populated after IPC OAuth flow
+  if (isDesktop()) {
+    const cached = _desktopProviderUserCache[provider];
+    return cached || null;
+  }
+
   const cookieName = provider === 'dropbox' ? 'dbx_user' : 'one_user';
   const raw = getCookie(cookieName);
   if (!raw) return null;
@@ -255,8 +273,28 @@ export function getProviderUserInfo(provider: CloudProviderType): OAuthUser | nu
   }
 }
 
+// In-memory set tracking authenticated providers on desktop (no cookies available)
+const _desktopAuthenticatedProviders = new Set<string>();
+const _desktopProviderUserCache: Record<string, OAuthUser> = {};
+
+export function markDesktopProviderAuthenticated(provider: string, authenticated: boolean, user?: OAuthUser) {
+  if (authenticated) {
+    _desktopAuthenticatedProviders.add(provider);
+    if (user) {
+      _desktopProviderUserCache[provider] = user;
+    }
+  } else {
+    _desktopAuthenticatedProviders.delete(provider);
+    delete _desktopProviderUserCache[provider];
+  }
+}
+
 export function isProviderAuthenticated(provider: CloudProviderType): boolean {
   if (provider === 'google') return isAuthenticated();
+  // Desktop: check the in-memory authenticated set (no browser cookies)
+  if (isDesktop()) {
+    return _desktopAuthenticatedProviders.has(provider);
+  }
   const cookieName = provider === 'dropbox' ? 'dbx_user' : 'one_user';
   return Boolean(getCookie(cookieName));
 }
@@ -266,6 +304,20 @@ export function initiateProviderOAuth(provider: CloudProviderType): void {
     initiateOAuth();
     return;
   }
+
+  // Desktop: use the Electron IPC auth bridge instead of navigating the main window
+  if (isDesktop() && window.cloudSyncDesktop?.auth?.loginWithProvider) {
+    window.cloudSyncDesktop.auth.loginWithProvider(provider).then((success) => {
+      if (success) {
+        markDesktopProviderAuthenticated(provider, true);
+        // Notify the app that a provider connected (triggers state refresh)
+        window.dispatchEvent(new CustomEvent('desktop:providerConnected', { detail: { provider } }));
+      }
+    });
+    return;
+  }
+
+  // Web: clear stale cookies then redirect to backend OAuth initiation
   const tokenCookie = provider === 'dropbox' ? 'dbx_access_token' : 'one_access_token';
   const userCookie = provider === 'dropbox' ? 'dbx_user' : 'one_user';
   if (typeof document !== 'undefined') {
@@ -280,6 +332,14 @@ export async function disconnectProvider(provider: CloudProviderType): Promise<v
     await logout();
     return;
   }
+
+  // Desktop: clear the in-memory cache via IPC
+  if (isDesktop() && window.cloudSyncDesktop?.auth?.disconnectProvider) {
+    await window.cloudSyncDesktop.auth.disconnectProvider(provider);
+    markDesktopProviderAuthenticated(provider, false);
+    return;
+  }
+
   await fetch(`/api/auth/logout?provider=${provider}`, { method: 'POST' });
   const tokenCookie = provider === 'dropbox' ? 'dbx_access_token' : 'one_access_token';
   const userCookie = provider === 'dropbox' ? 'dbx_user' : 'one_user';
@@ -293,13 +353,16 @@ export async function fetchCloudConnections(): Promise<Array<{
   connected: boolean;
   user?: OAuthUser;
 }>> {
-  try {
-    const res = await fetch('/api/auth/connections');
-    if (res.ok) {
-      const data = await res.json();
-      return data.connections || [];
-    }
-  } catch {}
+  // Desktop: skip the network fetch — use local in-memory state
+  if (!isDesktop()) {
+    try {
+      const res = await fetch('/api/auth/connections');
+      if (res.ok) {
+        const data = await res.json();
+        return data.connections || [];
+      }
+    } catch {}
+  }
 
   return [
     { provider: 'google', name: 'Google Drive', connected: isAuthenticated(), user: getUserInfo() || undefined },

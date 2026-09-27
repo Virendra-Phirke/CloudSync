@@ -18,6 +18,10 @@ export function registerIpcHandlers() {
     return await authService.login();
   });
 
+  ipcMain.handle('desktop:auth:loginWithProvider', async (_, { provider }: { provider: string }) => {
+    return await authService.loginWithProvider(provider as any);
+  });
+
   ipcMain.handle('desktop:auth:logout', async () => {
     return await authService.logout();
   });
@@ -28,6 +32,14 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('desktop:auth:getAccessToken', async () => {
     return await authService.getAccessToken();
+  });
+
+  ipcMain.handle('desktop:auth:getProviderAccessToken', async (_, { provider }: { provider: string }) => {
+    return await authService.getProviderAccessToken(provider as any);
+  });
+
+  ipcMain.handle('desktop:auth:disconnectProvider', async (_, { provider }: { provider: string }) => {
+    return await authService.disconnectProvider(provider as any);
   });
 
   ipcMain.handle('desktop:selectFolder', async () => {

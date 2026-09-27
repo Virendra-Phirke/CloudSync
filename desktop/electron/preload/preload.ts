@@ -11,9 +11,12 @@ const api: CloudSyncDesktopAPI = {
 
   auth: {
     login: () => ipcRenderer.invoke('desktop:auth:login'),
+    loginWithProvider: (provider: string) => ipcRenderer.invoke('desktop:auth:loginWithProvider', { provider }),
     logout: () => ipcRenderer.invoke('desktop:auth:logout'),
     getSession: () => ipcRenderer.invoke('desktop:auth:getSession'),
     getAccessToken: () => ipcRenderer.invoke('desktop:auth:getAccessToken'),
+    getProviderAccessToken: (provider: string) => ipcRenderer.invoke('desktop:auth:getProviderAccessToken', { provider }),
+    disconnectProvider: (provider: string) => ipcRenderer.invoke('desktop:auth:disconnectProvider', { provider }),
   },
 
   selectFolder: () => ipcRenderer.invoke('desktop:selectFolder'),
@@ -90,6 +93,14 @@ const api: CloudSyncDesktopAPI = {
     ipcRenderer.on('desktop:authChanged', handler);
     return () => {
       ipcRenderer.removeListener('desktop:authChanged', handler);
+    };
+  },
+
+  onProviderAuthChanged: (callback: (payload: { provider: string; user: any }) => void) => {
+    const handler = (_: any, payload: { provider: string; user: any }) => callback(payload);
+    ipcRenderer.on('desktop:providerAuthChanged', handler);
+    return () => {
+      ipcRenderer.removeListener('desktop:providerAuthChanged', handler);
     };
   },
 

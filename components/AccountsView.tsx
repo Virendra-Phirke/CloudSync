@@ -57,11 +57,33 @@ export const AccountsView = React.memo(function AccountsView() {
 
   useEffect(() => {
     loadConnections();
+
+    // initAuth handles Google auth state changes via the desktop:authChanged IPC push.
+    // onSuccess fires when login completes; onFailure fires on logout/error.
     const unsub = initAuth(
-      () => loadConnections(),
-      () => loadConnections()
+      (user) => {
+        // Google login succeeded (IPC push from authService after popup closes)
+        setConnectingProvider(null);
+        loadConnections();
+      },
+      () => {
+        // Logged out or session invalid
+        setConnectingProvider(null);
+        loadConnections();
+      }
     );
-    return () => unsub();
+
+    // Desktop: listen for successful Dropbox / OneDrive OAuth completions
+    const onProviderConnected = () => {
+      setConnectingProvider(null);
+      loadConnections();
+    };
+    window.addEventListener('desktop:providerConnected', onProviderConnected);
+
+    return () => {
+      unsub();
+      window.removeEventListener('desktop:providerConnected', onProviderConnected);
+    };
   }, [loadConnections]);
 
   const handleConnect = useCallback((provider: CloudProviderType) => {

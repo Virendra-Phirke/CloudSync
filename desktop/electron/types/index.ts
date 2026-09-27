@@ -74,9 +74,12 @@ export interface CloudSyncDesktopAPI {
   platform: string;
   auth: {
     login: () => Promise<boolean>;
+    loginWithProvider: (provider: string) => Promise<boolean>;
     logout: () => Promise<void>;
     getSession: () => Promise<DesktopUser | null>;
     getAccessToken: () => Promise<string | null>;
+    getProviderAccessToken: (provider: string) => Promise<string | null>;
+    disconnectProvider: (provider: string) => Promise<void>;
   };
   selectFolder: () => Promise<DesktopFolderSelection | null>;
   scanFolderChildren: (folderPath: string, relativePath?: string) => Promise<DesktopFileEntry[]>;
@@ -102,6 +105,7 @@ export interface CloudSyncDesktopAPI {
   onFolderEvent: (callback: (event: DesktopFolderWatcherEvent) => void) => () => void;
   onSyncTrigger: (callback: () => void) => () => void;
   onAuthChanged: (callback: (payload: { user: DesktopUser | null }) => void) => () => void;
+  onProviderAuthChanged?: (callback: (payload: { provider: string; user: DesktopUser | null }) => void) => () => void;
   onBackgroundModeChanged?: (callback: (payload: { inBackground: boolean }) => void) => () => void;
 }
 

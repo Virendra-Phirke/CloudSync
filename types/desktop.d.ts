@@ -7,9 +7,12 @@ declare global {
       platform: string;
       auth?: {
         login: () => Promise<boolean>;
+        loginWithProvider: (provider: string) => Promise<boolean>;
         logout: () => Promise<void>;
         getSession: () => Promise<{ email: string; name: string; picture: string } | null>;
         getAccessToken: () => Promise<string | null>;
+        getProviderAccessToken: (provider: string) => Promise<string | null>;
+        disconnectProvider: (provider: string) => Promise<void>;
       };
       startup?: {
         getSettings: () => Promise<{ openAtLogin: boolean; openAsHidden: boolean }>;
@@ -20,6 +23,7 @@ declare global {
       showWindow?: () => Promise<void>;
       updateTrayStatus?: (status: string) => Promise<void>;
       onAuthChanged?: (callback: (payload: { user: { email: string; name: string; picture: string } | null }) => void) => () => void;
+      onProviderAuthChanged?: (callback: (payload: { provider: string; user: { email: string; name: string; picture: string } | null }) => void) => () => void;
       onBackgroundModeChanged?: (callback: (payload: { inBackground: boolean }) => void) => () => void;
       onSyncTrigger?: (callback: () => void) => () => void;
       onFolderEvent?: (callback: (event: any) => void) => () => void;
