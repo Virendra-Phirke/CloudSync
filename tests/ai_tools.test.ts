@@ -7,13 +7,13 @@ import {
   toolDeleteCloudFile,
   toolDownloadFile,
   toolCreateSyncJob,
-} from '../lib/agent/tools.ts';
+} from '../lib/agent/tools';
 import {
   ToolSecurityContext,
   TaskExecutionMetrics,
   DestructiveConfirmationRequest,
-} from '../lib/agent/types.ts';
-import { createDestructiveConfirmation } from '../lib/agent/securityPolicy.ts';
+} from '../lib/agent/types';
+import { createDestructiveConfirmation } from '../lib/agent/securityPolicy';
 
 // Set dummy session secret for crypto
 process.env.SESSION_SECRET = '0123456789abcdef0123456789abcdef';

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { getProvider, listSupportedProviders } from '../lib/providers/index.ts';
-import { normalizeCloudPath, fetchWithProviderRetry, ProviderError } from '../lib/providers/base.ts';
+import { getProvider, listSupportedProviders } from '../lib/providers/index';
+import { normalizeCloudPath, fetchWithProviderRetry, ProviderError } from '../lib/providers/base';
 
 test('Provider Abstraction - registry provides all 3 cloud providers', () => {
   const google = getProvider('google');

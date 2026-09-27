@@ -8,8 +8,8 @@ import {
   verifyDestructiveConfirmation,
   wrapUntrustedCloudData,
   SecurityPolicyViolation,
-} from '../lib/agent/securityPolicy.ts';
-import { recordAuditLog, getAuditLogs, clearAuditLogs } from '../lib/agent/auditLogger.ts';
+} from '../lib/agent/securityPolicy';
+import { recordAuditLog, getAuditLogs, clearAuditLogs } from '../lib/agent/auditLogger';
 
 // Set dummy session secret for crypto
 process.env.SESSION_SECRET = '0123456789abcdef0123456789abcdef';

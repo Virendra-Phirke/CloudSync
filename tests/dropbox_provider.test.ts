@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { DropboxProvider } from '../lib/providers/dropbox.ts';
+import { DropboxProvider } from '../lib/providers/dropbox';
 
 test('DropboxProvider - initialization and identity', () => {
   const provider = new DropboxProvider();

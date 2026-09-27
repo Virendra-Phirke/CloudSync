@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { SyncFolder } from '../lib/localFolder.ts';
-import { CloudProviderType } from '../lib/providers/types.ts';
+import { SyncFolder } from '../lib/localFolder';
+import { CloudProviderType } from '../lib/providers/types';
 
 // Simulated filter predicate as implemented in FilesView.tsx and SettingsView.tsx
 function isFolderForProvider(folder: SyncFolder, selectedProvider: CloudProviderType): boolean {

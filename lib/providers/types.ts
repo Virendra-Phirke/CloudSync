@@ -58,6 +58,7 @@ export interface UploadOptions {
   onProgress?: (bytesUploaded: number, totalBytes: number) => void;
   abortSignal?: AbortSignal;
   mimeType?: string;
+  overwrite?: boolean;
 }
 
 /**

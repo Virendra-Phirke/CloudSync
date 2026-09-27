@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert';
-import { OneDriveProvider } from '../lib/providers/onedrive.ts';
+import { OneDriveProvider } from '../lib/providers/onedrive';
 
 test('OneDriveProvider - initialization and identity', () => {
   const provider = new OneDriveProvider();

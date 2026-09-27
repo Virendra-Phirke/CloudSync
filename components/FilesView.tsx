@@ -52,6 +52,7 @@ type FileItem = {
   thumbnailLink?: string;
   iconLink?: string;
   handle?: any;
+  provider?: CloudProviderType;
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
