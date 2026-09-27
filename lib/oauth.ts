@@ -185,35 +185,120 @@ export function initAuth(
 }
 
 /**
- * handleRedirectCallback — no-op in this OAuth implementation.
- * The OAuth callback is handled server-side at /api/auth/callback/google.
- * Kept for API compatibility with components that import it from the old firebase.ts.
+ * handleRedirectCallback — checks if we just returned from an OAuth flow (Google, Dropbox, OneDrive).
+ * Kept for API compatibility with components that import it.
  */
 export async function handleRedirectCallback(
   onSuccess: (user: OAuthUser, token: string) => void,
   onError: (error: Error) => void
 ): Promise<null> {
-  // Check if we just came back from a successful OAuth flow
   if (typeof window !== 'undefined') {
     const params = new URLSearchParams(window.location.search);
+    const provider = params.get('provider') || 'google';
+
     if (params.get('auth_success')) {
-      const user = getUserInfo();
-      const token = getCookie('g_access_token');
+      const user = getProviderUserInfo(provider as any) || getUserInfo();
+      const token = await getProviderAccessToken(provider as any) || await getAccessToken();
       if (user && token) {
         onSuccess(user, token);
-        // Clean up query param
-        const url = new URL(window.location.href);
-        url.searchParams.delete('auth_success');
-        window.history.replaceState({}, '', url.toString());
       }
+      const url = new URL(window.location.href);
+      url.searchParams.delete('auth_success');
+      url.searchParams.delete('provider');
+      window.history.replaceState({}, '', url.toString());
     }
     if (params.get('auth_error')) {
       const err = params.get('auth_error') || 'unknown_error';
       onError(new Error(err));
       const url = new URL(window.location.href);
       url.searchParams.delete('auth_error');
+      url.searchParams.delete('provider');
       window.history.replaceState({}, '', url.toString());
     }
   }
   return null;
 }
+
+// ─── Multi-Cloud Extended API ──────────────────────────────────────────────────
+
+export type CloudProviderType = 'google' | 'dropbox' | 'onedrive';
+
+export async function getProviderAccessToken(provider: CloudProviderType): Promise<string | null> {
+  if (provider === 'google') return getAccessToken();
+
+  const cookieName = provider === 'dropbox' ? 'dbx_access_token' : 'one_access_token';
+  const token = getCookie(cookieName);
+  if (token) return token;
+
+  // Try silent refresh
+  try {
+    const res = await fetch(`/api/auth/token?provider=${provider}`, { method: 'POST' });
+    if (res.ok) {
+      const data = await res.json();
+      return data.accessToken ?? null;
+    }
+  } catch {}
+
+  return null;
+}
+
+export function getProviderUserInfo(provider: CloudProviderType): OAuthUser | null {
+  if (provider === 'google') return getUserInfo();
+
+  const cookieName = provider === 'dropbox' ? 'dbx_user' : 'one_user';
+  const raw = getCookie(cookieName);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as OAuthUser;
+  } catch {
+    return null;
+  }
+}
+
+export function isProviderAuthenticated(provider: CloudProviderType): boolean {
+  if (provider === 'google') return isAuthenticated();
+  const cookieName = provider === 'dropbox' ? 'dbx_user' : 'one_user';
+  return Boolean(getCookie(cookieName));
+}
+
+export function initiateProviderOAuth(provider: CloudProviderType): void {
+  if (provider === 'google') {
+    initiateOAuth();
+    return;
+  }
+  window.location.href = `/api/auth/${provider}`;
+}
+
+export async function disconnectProvider(provider: CloudProviderType): Promise<void> {
+  if (provider === 'google') {
+    await logout();
+    return;
+  }
+  await fetch(`/api/auth/logout?provider=${provider}`, { method: 'POST' });
+  const tokenCookie = provider === 'dropbox' ? 'dbx_access_token' : 'one_access_token';
+  const userCookie = provider === 'dropbox' ? 'dbx_user' : 'one_user';
+  document.cookie = `${tokenCookie}=; path=/; max-age=0`;
+  document.cookie = `${userCookie}=; path=/; max-age=0`;
+}
+
+export async function fetchCloudConnections(): Promise<Array<{
+  provider: CloudProviderType;
+  name: string;
+  connected: boolean;
+  user?: OAuthUser;
+}>> {
+  try {
+    const res = await fetch('/api/auth/connections');
+    if (res.ok) {
+      const data = await res.json();
+      return data.connections || [];
+    }
+  } catch {}
+
+  return [
+    { provider: 'google', name: 'Google Drive', connected: isAuthenticated(), user: getUserInfo() || undefined },
+    { provider: 'dropbox', name: 'Dropbox', connected: isProviderAuthenticated('dropbox'), user: getProviderUserInfo('dropbox') || undefined },
+    { provider: 'onedrive', name: 'Microsoft OneDrive', connected: isProviderAuthenticated('onedrive'), user: getProviderUserInfo('onedrive') || undefined },
+  ];
+}
+

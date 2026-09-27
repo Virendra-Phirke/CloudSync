@@ -4,6 +4,8 @@ import { ConflictItem, syncBiDirectional } from '../lib/syncBiDirectional';
 import { useToast } from './ToastContext';
 import { getLocalFolderById, getLocalFolders } from '../lib/localFolder';
 import { isDesktop, getDesktopAPI } from '../lib/desktopAdapter';
+import { CloudProviderType } from '../lib/providers/types';
+import { getProvider } from '../lib/providers';
 
 interface SyncContextType {
   isSyncing: boolean;
@@ -11,7 +13,7 @@ interface SyncContextType {
   activeSyncFolderId: string | null;
   currentConflicts: ConflictItem[];
   resolveConflictFn: ((resolution: 'local' | 'drive' | 'skip') => void) | null;
-  startSync: (folderId: string) => Promise<void>;
+  startSync: (folderId: string, provider?: CloudProviderType) => Promise<void>;
   cancelSync: () => void;
 }
 
@@ -27,7 +29,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const isSyncingRef = useRef(false);
-  const pendingSyncFolderIdRef = useRef<string | null>(null);
+  const pendingSyncFolderIdRef = useRef<{ folderId: string; provider?: CloudProviderType } | null>(null);
   const { showToast } = useToast();
 
   const cancelSync = useCallback(() => {
@@ -37,10 +39,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const startSync = useCallback(async (folderId: string) => {
+  const startSync = useCallback(async (folderId: string, targetProvider: CloudProviderType = 'google') => {
     // Serialization: do not run sync twice concurrently
     if (isSyncingRef.current) {
-      pendingSyncFolderIdRef.current = folderId;
+      pendingSyncFolderIdRef.current = { folderId, provider: targetProvider };
       return;
     }
     
@@ -49,11 +51,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     isSyncingRef.current = true;
     setIsSyncing(true);
     setActiveSyncFolderId(folderId);
-    setSyncProgressMsg('Starting sync...');
+    setSyncProgressMsg(`Starting sync with ${targetProvider === 'google' ? 'Google Drive' : targetProvider === 'dropbox' ? 'Dropbox' : 'OneDrive'}...`);
+
+    const cloudProvider = getProvider(targetProvider);
 
     if (isDesktop()) {
       try {
-        getDesktopAPI().updateTrayStatus('Syncing with Google Drive...');
+        getDesktopAPI().updateTrayStatus(`Syncing with ${cloudProvider.name}...`);
       } catch {}
     }
     
@@ -86,16 +90,17 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             });
           });
         },
-        abortController.signal
+        abortController.signal,
+        cloudProvider
       );
       
       if (!abortController.signal.aborted) {
-        showToast('Sync completed successfully!', 'success');
+        showToast(`Sync completed with ${cloudProvider.name}!`, 'success');
         if (isDesktop()) {
           try {
             getDesktopAPI().showNotification({
               title: 'CloudSync',
-              body: 'Synchronization complete with Google Drive',
+              body: `Synchronization complete with ${cloudProvider.name}`,
               type: 'success',
             });
           } catch {}
@@ -130,10 +135,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
       // Process any coalesced pending sync request
       if (pendingSyncFolderIdRef.current) {
-        const nextFolderId = pendingSyncFolderIdRef.current;
+        const next = pendingSyncFolderIdRef.current;
         pendingSyncFolderIdRef.current = null;
         setTimeout(() => {
-          startSync(nextFolderId);
+          startSync(next.folderId, next.provider);
         }, 1000);
       }
     }

@@ -61,6 +61,10 @@ export async function syncLocalFolderToDrive(
           const file = await (item.handle as any).getFile();
           
           const cachedState = syncState[item.path];
+          if (cachedState?.provider && cachedState.provider !== 'google') {
+            // Belongs to another provider (e.g. Dropbox or OneDrive), do not sync to Google Drive!
+            continue;
+          }
           let localHash = cachedState?.md5Hash;
           
           // Fast-path: Check if file is unmodified locally

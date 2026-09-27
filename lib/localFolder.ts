@@ -181,8 +181,8 @@ export async function getLocalFolderInfos(): Promise<SyncFolder[]> {
   return folders.map(f => f.info);
 }
 
-/** Get a specific folder entry by ID, re-requesting permission if needed. */
-export async function getLocalFolderById(id: string): Promise<SyncFolderEntry | null> {
+/** Get a specific folder entry by ID. Safe for automated (non-user-gesture) calls when interactive=false. */
+export async function getLocalFolderById(id: string, interactive = false): Promise<SyncFolderEntry | null> {
   const folders = await getLocalFolders();
   const entry = folders.find(f => f.id === id);
   if (!entry) return null;
@@ -197,13 +197,19 @@ export async function getLocalFolderById(id: string): Promise<SyncFolderEntry | 
 
   try {
     let perm = await (entry.handle as any).queryPermission({ mode: 'readwrite' });
-    if (perm !== 'granted') {
+    if (perm !== 'granted' && interactive) {
       perm = await (entry.handle as any).requestPermission({ mode: 'readwrite' });
     }
     return perm === 'granted' ? entry : null;
   } catch {
     return null;
   }
+}
+
+/** Get a specific folder entry by ID without querying permissions (for metadata/raw handle access). */
+export async function getLocalFolderRaw(id: string): Promise<SyncFolderEntry | null> {
+  const folders = await getLocalFolders();
+  return folders.find(f => f.id === id) || null;
 }
 
 const DEFAULT_SYNCIGNORE = `# ============================================================

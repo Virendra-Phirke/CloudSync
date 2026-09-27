@@ -3,8 +3,11 @@ import { get, set, del, keys } from 'idb-keyval';
 export interface SyncStateItem {
   lastModified: number;
   size: number;
-  md5Hash: string;
-  driveId: string;
+  md5Hash?: string;
+  remoteHash?: string;
+  driveId?: string; // backwards compatibility alias for remoteId
+  remoteId?: string;
+  provider?: string;
 }
 
 // Map of filePath (relative to root) to its SyncStateItem

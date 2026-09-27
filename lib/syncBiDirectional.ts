@@ -57,16 +57,47 @@ async function runPool<T>(
   }
 }
 
+import { CloudProvider } from './providers/types';
+import { executeUniversalSync } from './sync/universalSync';
+import { getProvider } from './providers';
+
 // ─── Sync Engine ────────────────────────────────────────────────────────────
 
 export async function syncBiDirectional(
   localRootHandle: FileSystemDirectoryHandle,
   onProgress?: (msg: string) => void,
   onConflict?: (conflicts: ConflictItem[]) => Promise<'local' | 'drive' | 'skip'>,
-  abortSignal?: AbortSignal
+  abortSignal?: AbortSignal,
+  provider?: CloudProvider
 ) {
   abortSignal?.throwIfAborted();
-  
+
+  // If a non-Google provider is explicitly passed, delegate to the universal sync engine
+  if (provider && provider.id !== 'google') {
+    return executeUniversalSync({
+      source: { type: 'local', handle: localRootHandle, name: localRootHandle.name },
+      destination: { type: 'cloud', provider, name: provider.name },
+      onProgress: (msg) => onProgress?.(msg),
+      onConflict: onConflict
+        ? async (conflicts) => {
+            const mapped = conflicts.map((c) => ({
+              path: c.path,
+              localLastModified: c.sourceLastModified,
+              driveLastModified: c.destinationLastModified,
+              driveFileId: c.destinationId,
+              localFile: c.sourceFile,
+              localSize: c.sourceSize,
+              driveSize: c.destinationSize,
+              mimeType: c.mimeType,
+            }));
+            const res = await onConflict(mapped);
+            return res === 'drive' ? 'destination' : res === 'local' ? 'source' : 'skip';
+          }
+        : undefined,
+      abortSignal,
+    });
+  }
+
   onProgress?.('Loading local sync state...');
   const syncState: SyncStateMap = await getSyncState();
 
@@ -153,12 +184,17 @@ export async function syncBiDirectional(
           const fileHandle = localInfo.handle;
           const file = await fileHandle.getFile();
 
+          if (cachedState?.provider && cachedState.provider !== 'google') {
+            // Belongs to another provider (e.g. Dropbox or OneDrive), do not sync to Google Drive!
+            return;
+          }
+
           if (!driveFile) {
             // Local Only -> Upload
             onProgress?.(`[${totalFilesProcessed}] Uploading: ${localInfo.fullPath}`);
             const localHash = await calculateFileHash(file);
             const uploaded = await uploadFileToDrive(file, driveDirId);
-            queueStateUpdate(localInfo.fullPath, { lastModified: file.lastModified, size: file.size, md5Hash: localHash, driveId: uploaded.id });
+            queueStateUpdate(localInfo.fullPath, { lastModified: file.lastModified, size: file.size, md5Hash: localHash, driveId: uploaded.id, provider: 'google' });
           } else {
             // Exists in both -> Compare
             const localTime = file.lastModified;
@@ -172,7 +208,7 @@ export async function syncBiDirectional(
                 onProgress?.(`[${totalFilesProcessed}] Updating Drive: ${localInfo.fullPath}`);
                 const localHash = await calculateFileHash(file);
                 const updated = await updateDriveFile(driveFile.id, file);
-                queueStateUpdate(localInfo.fullPath, { lastModified: file.lastModified, size: file.size, md5Hash: localHash, driveId: updated.id });
+                queueStateUpdate(localInfo.fullPath, { lastModified: file.lastModified, size: file.size, md5Hash: localHash, driveId: updated.id, provider: 'google' });
               } else if (driveChanged && !localChanged) {
                 onProgress?.(`[${totalFilesProcessed}] Downloading: ${localInfo.fullPath}`);
                 const blob = await getDriveFileBlob(driveFile.id);
@@ -180,7 +216,7 @@ export async function syncBiDirectional(
                 await writable.write(blob);
                 await writable.close();
                 const newFile = await fileHandle.getFile();
-                queueStateUpdate(localInfo.fullPath, { lastModified: newFile.lastModified, size: newFile.size, md5Hash: driveFile.md5Checksum || '', driveId: driveFile.id });
+                queueStateUpdate(localInfo.fullPath, { lastModified: newFile.lastModified, size: newFile.size, md5Hash: driveFile.md5Checksum || '', driveId: driveFile.id, provider: 'google' });
               } else if (localChanged && driveChanged) {
                 // CONFLICT
                 if (onConflict) {
